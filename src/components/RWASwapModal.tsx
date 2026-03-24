@@ -331,9 +331,9 @@ function InputStep({
           <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-xs font-black text-blue-400 shrink-0">$</div>
           <input type="number" value={amountUsdc} onChange={e => setAmountUsdc(e.target.value)}
             placeholder="0.00"
-            className="flex-1 bg-transparent text-right text-3xl font-black text-white outline-none placeholder-slate-700" />
+            className="flex-1 min-w-0 bg-transparent text-right text-3xl font-black text-white outline-none placeholder-slate-700" />
         </div>
-        <div className="text-right mt-2">
+        <div className="text-right mt-2 w-full truncate">
           <span className="text-xs text-slate-500 font-mono">
             ≈ ₩{amountKrw.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </span>
@@ -359,7 +359,7 @@ function InputStep({
                 : '예상 수령액'}
           </span>
         </div>
-        <div className="text-3xl font-black text-white text-right">{estimatedRwaAmount}</div>
+        <div className="text-3xl font-black text-white text-right break-all">{estimatedRwaAmount}</div>
         {price?.priceUsd && (
           <div className="text-right text-xs text-slate-500 mt-1 font-mono">
             1 {asset.symbol} = ${price.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 4 })}

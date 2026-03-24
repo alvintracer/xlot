@@ -32,7 +32,7 @@ import { PhoneClaimModal }    from "./PhoneClaimModal";
 
 // Utils & Services
 import { getSpecificProvider }    from "../utils/walletProviderUtils";
-import { getMyWallets, deleteWallet } from "../services/walletService";
+import { getMyWallets, deleteWallet, ensureMainWallet } from "../services/walletService";
 import { fetchCryptoPrices }      from "../services/priceService";
 import { hasLocalPrivateKey }     from "../utils/SolanaLocalWallet";
 import { getDeviceId, registerCurrentDevice, getMyDevices } from "../utils/deviceService";
@@ -131,6 +131,10 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
       if (current?.nickname) setCurrentDeviceName(current.nickname);
       else setIsDeviceNameModalOpen(true);
       setHasSolPrivateKey(hasLocalPrivateKey());
+      
+      // ✨ 처음에 이메일로 가입한 경우 xLOT 기본 지갑을 생성 (이미 있으면 무시)
+      await ensureMainWallet(smartAccount.address, smartAccount.address);
+      
       await refreshData();
     };
 

@@ -311,19 +311,19 @@ function ChartPanel({ asset, prices, chartHeight = 260 }: { asset: MarketAsset; 
     <div className="flex flex-col h-full">
 
       {/* 헤더 */}
-      <div className="flex items-start justify-between mb-4">
-        <div>
+      <div className="flex items-start justify-between gap-2 mb-4">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5 mb-2">
-            <div className={`w-9 h-9 rounded-full bg-${asset.color}-500/15 border border-${asset.color}-500/30 flex items-center justify-center text-sm font-black text-${asset.color}-400`}>
+            <div className={`w-9 h-9 rounded-full bg-${asset.color}-500/15 border border-${asset.color}-500/30 flex items-center justify-center text-sm font-black text-${asset.color}-400 shrink-0`}>
               {asset.symbol.slice(0, 2)}
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-lg font-black text-white">{asset.symbol}</span>
-              <span className="text-xs text-slate-500 ml-2">{asset.name}</span>
+              <span className="text-xs text-slate-500 ml-2 truncate">{asset.name}</span>
             </div>
           </div>
-          <div className="flex items-end gap-3">
-            <p className="text-3xl font-black text-white font-mono tracking-tight">
+          <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1">
+            <p className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight break-words">
               {fmtPrice(price, currency, rate)}
             </p>
             <span className={`flex items-center gap-1 text-sm font-bold mb-1 ${isUp ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -335,7 +335,7 @@ function ChartPanel({ asset, prices, chartHeight = 260 }: { asset: MarketAsset; 
         </div>
 
         {/* 통화 토글 */}
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-2 shrink-0">
           <div className="flex bg-slate-800 rounded-xl p-0.5">
             {(['usd', 'krw'] as const).map(c => (
               <button key={c} onClick={() => setCurrency(c)}

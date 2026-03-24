@@ -261,10 +261,10 @@ export function TradePage({ onKycRequest }: TradePageProps) {
                     type="number" value={amountUsdc}
                     onChange={e => { setAmountUsdc(e.target.value); setBuyStep('idle'); }}
                     placeholder="0.00"
-                    className="flex-1 bg-transparent text-right text-4xl font-black text-white outline-none placeholder-slate-700"
+                    className="flex-1 min-w-0 bg-transparent text-right text-4xl font-black text-white outline-none placeholder-slate-700"
                   />
                 </div>
-                <div className="text-right mt-2">
+                <div className="text-right mt-2 w-full truncate">
                   <span className="text-xs text-slate-600 font-mono">
                     ≈ ₩{(usdcAmount * exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
@@ -286,7 +286,7 @@ export function TradePage({ onKycRequest }: TradePageProps) {
                     {isRouteFetching ? '경로 탐색 중...' : panelRoute ? '⚡ 1inch 견적' : '예상 수령액'}
                   </span>
                 </div>
-                <p className={`text-4xl mt-3 font-black text-right ${colors.text}`}>
+                <p className={`text-4xl mt-3 font-black text-right break-all ${colors.text}`}>
                   {panelRoute ? panelRoute.toAmountDisplay : estimatedRwa}
                 </p>
               </div>
