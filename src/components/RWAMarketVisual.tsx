@@ -408,9 +408,9 @@ export function LiquidityDonut({
         <span className="text-xs text-slate-500">DEX별 비중</span>
       </div>
 
-      <div className="flex items-center gap-6 px-2">
+      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 px-2">
         {/* 도넛 */}
-        <div className="flex-shrink-0 w-32 xl:w-40 2xl:w-48">
+        <div className="flex-shrink-0 w-36 sm:w-32 xl:w-40 2xl:w-48 mx-auto sm:mx-0">
           <svg viewBox="0 0 160 160" className="w-full h-auto drop-shadow-xl">
           {slices.map((sl, i) => (
             <g key={i}>
@@ -447,7 +447,7 @@ export function LiquidityDonut({
         </div>
 
         {/* 범례 */}
-        <div className="flex-1 space-y-3">
+        <div className="flex-1 w-full space-y-3">
           {slices.map((sl, i) => (
             <div key={i} className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
@@ -455,10 +455,10 @@ export function LiquidityDonut({
                   style={{ backgroundColor: sl.color }} />
                 <span className="text-sm font-bold text-slate-300 truncate">{sl.label}</span>
               </div>
-              <div className="text-right shrink-0">
+              <div className="text-right shrink-0 max-w-[50%] truncate">
                 <span className="text-sm font-black text-white">{Math.round(sl.value)}%</span>
                 {totalLiq > 0 && (
-                  <span className="text-xs text-slate-500 ml-2 font-mono">
+                  <span className="text-xs text-slate-500 ml-2 font-mono truncate">
                     {fmtLiq(totalLiq * sl.value / 100)}
                   </span>
                 )}

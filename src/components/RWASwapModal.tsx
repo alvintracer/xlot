@@ -83,7 +83,7 @@ export function RWASwapModal({ asset, prices, navData, onClose, onKycRequest }: 
     if (!smartAccount) return;
     setIsCheckingKyc(true);
     // hasValidCredential은 async (userId, claimType) → Promise<boolean>
-    hasValidCredential(smartAccount.address, 'NON_SANCTIONED')
+    hasValidCredential(smartAccount.address)
       .then(setHasKyc)
       .catch(() => setHasKyc(false))
       .finally(() => setIsCheckingKyc(false));

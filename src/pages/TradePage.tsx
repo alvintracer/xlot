@@ -87,7 +87,7 @@ export function TradePage({ onKycRequest }: TradePageProps) {
   useEffect(() => {
     if (!smartAccount) return;
     setIsCheckingKyc(true);
-    hasValidCredential(smartAccount.address, 'NON_SANCTIONED')
+    hasValidCredential(smartAccount.address)
       .then(setHasKyc)
       .catch(() => setHasKyc(false))
       .finally(() => setIsCheckingKyc(false));
