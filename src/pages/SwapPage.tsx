@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   ArrowRightLeft, ChevronDown, Loader2, AlertCircle,
   Check, AlertTriangle, RefreshCw, TrendingUp, TrendingDown,
-  Zap, ExternalLink, ChevronUp, Activity, Shield, Search
+  Zap, ExternalLink, ChevronUp, Activity, Search
 } from "lucide-react";
 import { useActiveAccount } from "thirdweb/react";
 import { getMyWallets } from "../services/walletService";
@@ -17,9 +17,7 @@ import type { PriceData } from "../services/priceService";
 import { TOKEN_LIST, getChainIdByNetwork } from "../constants/tokens";
 import type { Token } from "../constants/tokens";
 import { TokenSelectModal } from "../components/TokenSelectModal";
-import { KYTGuard } from "../components/KYTGuard";
-import { kytService } from "../services/kytService";
-import type { KYTStatus, RiskResult } from "../services/kytService";
+
 import {
   getSwapQuote, executeSwap, getOHLCHistory,
   checkAllowance, buildApprovalTx, EXPLORER
@@ -433,9 +431,6 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
   const [txHash, setTxHash]         = useState<string | null>(null);
   const quoteRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [kytStatus, setKytStatus]   = useState<KYTStatus>('idle');
-  const [kytResult, setKytResult]   = useState<RiskResult | null>(null);
-  const [kytReason, setKytReason]   = useState("");
   const [fxReason, setFxReason]     = useState("");
 
   // 선택 자산 → toToken 자동 설정
@@ -503,15 +498,9 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
     return () => { if (quoteRef.current) clearTimeout(quoteRef.current); };
   }, [fetchQuote]);
 
-  // KYT
-  const targetAddress = selectedWallet?.addresses?.evm || "";
-  const handleKytScreen = useCallback((addr: string, net: string, amtUsd?: number): Promise<RiskResult> =>
-    kytService.screenAddress(addr, net, amtUsd), []);
-
   const canSwap   = ['XLOT', 'METAMASK', 'WALLETCONNECT'].includes(selectedWallet?.wallet_type || '');
-  const kytOk     = kytService.canProceed(kytStatus, kytResult, kytReason);
   const fxOk      = swapValueUsd < FX_THRESHOLD_USD || fxReason.trim().length >= 5;
-  const canSubmit = canSwap && finalSellAmount !== '0' && !!toToken && kytOk && fxOk && !!quote && !quoteLoading;
+  const canSubmit = canSwap && finalSellAmount !== '0' && !!toToken && fxOk && !!quote && !quoteLoading;
 
   const handleSwap = async () => {
     if (!canSubmit || !smartAccount || !quote) return;
@@ -528,9 +517,6 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
           await new Promise(r => setTimeout(r, 3000));
         }
       }
-      if (kytResult && kytService.requiresReason(kytResult) && kytReason)
-        kytService.logReason({ address: targetAddress, network: 'ethereum', riskLevel: kytResult.riskLevel, riskScore: kytResult.riskScore, reason: kytReason, userUUID: smartAccount.address, timestamp: Date.now() }).catch(console.warn);
-
       const hash = await executeSwap(quote, (window as any).ethereum);
       setTxHash(hash); setAmountInput(""); setQuote(null);
     } catch (e: any) {
@@ -693,16 +679,6 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
         </div>
       )}
 
-      {/* KYT */}
-      {canSwap && targetAddress && (
-        <KYTGuard
-          address={targetAddress} network="ethereum" amountUSD={swapValueUsd}
-          kytStatus={kytStatus} kytResult={kytResult} reason={kytReason}
-          onStatusChange={setKytStatus} onResultChange={setKytResult} onReasonChange={setKytReason}
-          onScreen={handleKytScreen}
-        />
-      )}
-
       {/* FX */}
       {swapValueUsd >= FX_THRESHOLD_USD && canSwap && (
         <div className="bg-amber-500/8 border border-amber-500/30 rounded-2xl p-3 space-y-2">
@@ -713,16 +689,6 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
           <textarea value={fxReason} onChange={e => setFxReason(e.target.value)}
             placeholder="거래 목적 (최소 5자)" rows={2}
             className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-amber-500/30 focus:border-amber-400 outline-none resize-none placeholder-slate-600" />
-        </div>
-      )}
-
-      {/* Compliance */}
-      {canSwap && (
-        <div className="flex items-center gap-2 bg-cyan-500/5 border border-cyan-500/15 rounded-xl px-3 py-2">
-          <Shield size={10} className="text-cyan-400 shrink-0" />
-          <p className="text-[10px] text-slate-500">
-            <span className="text-cyan-400 font-bold">TranSight KYT</span> 실시간 스크리닝
-          </p>
         </div>
       )}
 
@@ -738,8 +704,6 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
           className="w-full py-3.5 rounded-2xl font-black text-sm text-white bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 hover:shadow-[0_0_30px_rgba(34,211,238,0.2)] disabled:opacity-40 disabled:shadow-none transition-all shadow-lg">
           {swapping
             ? <span className="flex items-center justify-center gap-2"><Loader2 size={14} className="animate-spin" /> 전송 중...</span>
-            : kytStatus === 'checking'
-            ? <span className="flex items-center justify-center gap-2"><Loader2 size={14} className="animate-spin" /> KYT 검증 중...</span>
             : quoteLoading
             ? <span className="flex items-center justify-center gap-2"><Loader2 size={14} className="animate-spin" /> 견적 조회 중...</span>
             : <span className="flex items-center justify-center gap-2"><Zap size={14} /> SWAP {toToken?.symbol}</span>

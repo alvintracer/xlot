@@ -157,3 +157,15 @@ export async function fetchUpbitWithdrawAddresses(accessKey: string, secretKey: 
     if (!res.ok) throw new Error(json.error || "주소 목록 조회 실패");
     return json;
 }
+
+// ✨ [NEW] 업비트 계좌 정보 조회 (테스트)
+export async function fetchUpbitAccounts(accessKey: string, secretKey: string) {
+    const res = await fetch(`${RELAY_URL}/upbit/accounts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessKey, secretKey })
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "계좌 조회 실패");
+    return json;
+}

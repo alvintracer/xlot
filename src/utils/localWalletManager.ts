@@ -130,3 +130,22 @@ export const importRestoredKeysToLocal = (jsonString: string) => {
     }
     return 0;
 };
+
+// 8. [Import Raw Keys] Cloud에서 복원된 원시 키(Record<string, string>) 저장
+export const importRestoredRawKeysToLocal = (keys: Record<string, string>, passcode: string) => {
+    let count = 0;
+    try {
+        for (const [keyId, privateKey] of Object.entries(keys)) {
+            const parts = keyId.split('_');
+            if (parts.length >= 4 && parts[0] === 'xlot' && parts[1] === 'sk') {
+                const chain = parts[2].toUpperCase() as SupportedChain;
+                const address = parts.slice(3).join('_');
+                saveImportedKey(chain, address, privateKey, passcode);
+                count++;
+            }
+        }
+    } catch (e) {
+        console.error("Raw Key Import Failed:", e);
+    }
+    return count;
+};

@@ -296,3 +296,261 @@ export async function buildApprovalTx(chainId: number, tokenAddress: string, amo
   if (!res.ok) throw new Error('Approval 트랜잭션 생성 실패');
   return res.json();
 }
+
+// ─── DEX Route (tx 없이 빠른 경로 조회) ──────────────────────────────────────
+// /quote 엔드포인트 사용 — InputStep 실시간 표시용
+// getSwapQuote와 달리 tx 데이터 없음 → 빠름
+
+export interface DEXRouteResult {
+  chainId: number;
+  fromSymbol: string;
+  toSymbol: string;
+  fromAmountDisplay: string;
+  toAmountDisplay: string;
+  estimatedGasUsd: number;
+  routes: RouteProtocol[];     // DEX별 비중 (part 합계 = 100)
+  fetchedAt: number;
+  // Feature 5: 유동성
+  liquidityUsd: number | null;    // 주요 풀 TVL (USD)
+  volume24hUsd: number | null;    // 24h 거래량 (USD)
+  priceImpactPct: number | null;  // 내 금액 기준 price impact %
+}
+
+// DEX 이름 → 사람이 읽기 좋은 레이블
+const DEX_LABELS: Record<string, string> = {
+  UNISWAP_V3:          'Uniswap V3',
+  UNISWAP_V2:          'Uniswap V2',
+  CURVE:               'Curve',
+  CURVE_V2:            'Curve V2',
+  BALANCER_V2:         'Balancer V2',
+  BALANCER:            'Balancer',
+  SUSHI:               'SushiSwap',
+  PMM2:                'PMM2',
+  PMM4:                'PMM4',
+  PMM7:                'PMM7',
+  PMM13:               'PMM13',
+  PMM14:               '1inch PMM',
+  ONE_INCH_LIMIT_ORDER:'1inch LO',
+  DODO:                'DODO',
+  DODO_V2:             'DODO V2',
+  PANCAKESWAP:         'PancakeSwap',
+  KYBERSWAP_ELASTIC:   'KyberSwap',
+  MAVERICK_V1:         'Maverick V1',
+};
+
+export function getDexLabel(name: string): string {
+  return DEX_LABELS[name] || name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// DEX별 색상 (비중 바 색상용)
+export function getDexColor(name: string): string {
+  if (name.includes('UNISWAP'))  return '#FF007A';
+  if (name.includes('CURVE'))    return '#3466AA';
+  if (name.includes('BALANCER')) return '#1E1E1E';
+  if (name.includes('SUSHI'))    return '#0993EC';
+  if (name.includes('PMM') || name.includes('ONE_INCH')) return '#1B314E';
+  if (name.includes('DODO'))     return '#FFE804';
+  return '#6B7280';
+}
+
+export async function getSwapRoute(
+  chainId: number,
+  fromAddress: string,
+  toAddress: string,
+  fromAmount: string,
+  fromDecimals: number,
+  toDecimals: number,
+  fromSymbol: string,
+  toSymbol: string,
+): Promise<DEXRouteResult | null> {
+  const amountWei = toWei(fromAmount, fromDecimals);
+  if (amountWei === '0') return null;
+
+  try {
+    const params = new URLSearchParams({
+      src: fromAddress,
+      dst: toAddress,
+      amount: amountWei,
+      includeProtocols: 'true',
+      includeGas: 'true',
+    });
+
+    const res = await fetch(
+      `${ONEINCH_BASE}/${chainId}/quote?${params}`,
+      { headers: oneinchHeaders() }
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const toAmountWei: string = data.dstAmount || data.toAmount || '0';
+
+    // protocols 파싱 — 1inch는 [[[ ]]] 3중 배열
+    const routes: RouteProtocol[] = [];
+    if (data.protocols?.[0]) {
+      for (const hop of data.protocols[0]) {
+        for (const pool of hop) {
+          const existing = routes.find(r => r.name === pool.name);
+          if (existing) {
+            existing.part += pool.part;
+          } else {
+            routes.push({ name: pool.name, part: pool.part });
+          }
+        }
+      }
+    }
+
+    // part 합계 100으로 정규화
+    const totalPart = routes.reduce((s, r) => s + r.part, 0);
+    if (totalPart > 0 && totalPart !== 100) {
+      routes.forEach(r => { r.part = Math.round((r.part / totalPart) * 100); });
+    }
+
+    // part 내림차순 정렬
+    routes.sort((a, b) => b.part - a.part);
+
+    const gasUsd = data.estimatedGas
+      ? (data.estimatedGas * 30e-9 * 3000)
+      : 0;
+
+    // Feature 5: 유동성 데이터 병렬 fetch
+    const poolAddr = getPoolAddress(toAddress);
+    const liquidityData = poolAddr
+      ? await fetchPoolLiquidity(poolAddr).catch(() => null)
+      : null;
+
+    // price impact 계산
+    const fromAmountNum = parseFloat(fromAmount) || 0;
+    const toAmountNum   = parseFloat(fromWei(toAmountWei, toDecimals)) || 0;
+    // toAddress가 RWA 토큰이므로 output 기준으로 계산
+    const priceImpact   = data.toAmountMinusFee
+      ? calcPriceImpact(
+          fromAmountNum,
+          toAmountNum,
+          toAmountNum > 0 ? fromAmountNum / toAmountNum : 1,
+        )
+      : null;
+
+    return {
+      chainId,
+      fromSymbol,
+      toSymbol,
+      fromAmountDisplay: fromAmount,
+      toAmountDisplay: fromWei(toAmountWei, toDecimals),
+      estimatedGasUsd: parseFloat(gasUsd.toFixed(4)),
+      routes,
+      fetchedAt: Date.now(),
+      liquidityUsd:   liquidityData?.liquidityUsd   ?? null,
+      volume24hUsd:   liquidityData?.volume24hUsd   ?? null,
+      priceImpactPct: priceImpact,
+    };
+  } catch (e) {
+    console.warn('[swapService] getSwapRoute 실패:', e);
+    return null;
+  }
+}
+
+// ─── Feature 5: 유동성 / 풀 깊이 ────────────────────────────────────────────
+// Uniswap V3 Subgraph (무료, API key 불필요)
+// 풀 주소: RWA 자산별 주요 USDC 페어 풀
+
+const UNISWAP_SUBGRAPH = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3';
+const UNISWAP_SUBGRAPH_BASE = 'https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-base';
+
+// RWA 토큰별 Uniswap V3 USDC 페어 풀 주소 (Ethereum mainnet)
+// 풀 주소 없는 자산은 null → TVL fetch 스킵
+const RWA_POOL_ADDRESSES: Record<string, string | null> = {
+  // USDY/USDC Uniswap V3 (0.05% tier)
+  '0x96F6eF951840721AdBF46Ac996b59E0235CB985C': '0x4dd6CaF2bB97FBC8A4DB09Ad050A671Cb5477C3',
+  // PAXG/USDC Uniswap V3
+  '0x45804880De22913dAFE09f4980848ECE6EcbAf78': '0xc7d485cb5EF02AC8A2D88AB2d5d7e680e0d9aFd8',
+  // XAUt/USDC — 유동성 희박, null 처리
+  '0x68749665FF8D2d112Fa859AA293F07A622782F38': null,
+  // OUSG — OTC 위주, DEX 풀 미미
+  '0x1B19C19393e2d034D8Ff31ff34c81252FcBbee92': null,
+};
+
+export interface PoolLiquidity {
+  liquidityUsd: number;
+  volume24hUsd: number;
+  feeTier: number;        // 예: 500 = 0.05%
+  token0Symbol: string;
+  token1Symbol: string;
+}
+
+// Uniswap V3 Subgraph에서 풀 TVL + 24h Volume 조회
+export async function fetchPoolLiquidity(
+  poolAddress: string,
+  subgraphUrl = UNISWAP_SUBGRAPH,
+): Promise<PoolLiquidity | null> {
+  try {
+    const query = `{
+      pool(id: "${poolAddress.toLowerCase()}") {
+        totalValueLockedUSD
+        volumeUSD
+        feeTier
+        token0 { symbol }
+        token1 { symbol }
+        poolDayData(first: 1, orderBy: date, orderDirection: desc) {
+          volumeUSD
+        }
+      }
+    }`;
+
+    const res = await fetch(subgraphUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!res.ok) return null;
+    const json = await res.json();
+    const pool = json?.data?.pool;
+    if (!pool) return null;
+
+    return {
+      liquidityUsd:  parseFloat(pool.totalValueLockedUSD || '0'),
+      volume24hUsd:  parseFloat(pool.poolDayData?.[0]?.volumeUSD || '0'),
+      feeTier:       parseInt(pool.feeTier || '3000'),
+      token0Symbol:  pool.token0?.symbol || '',
+      token1Symbol:  pool.token1?.symbol || '',
+    };
+  } catch (e) {
+    console.warn('[fetchPoolLiquidity] 실패:', e);
+    return null;
+  }
+}
+
+// 유동성 표시용 포맷 헬퍼
+export function formatLiquidity(usd: number): string {
+  if (usd >= 1_000_000_000) return `$${(usd / 1_000_000_000).toFixed(2)}B`;
+  if (usd >= 1_000_000)     return `$${(usd / 1_000_000).toFixed(2)}M`;
+  if (usd >= 1_000)         return `$${(usd / 1_000).toFixed(1)}K`;
+  return `$${usd.toFixed(0)}`;
+}
+
+// 유동성 수준 레이블 + 색상
+export function getLiquidityLevel(usd: number): { label: string; color: string } {
+  if (usd >= 50_000_000)  return { label: '매우 높음', color: 'text-emerald-400' };
+  if (usd >= 10_000_000)  return { label: '높음',     color: 'text-emerald-400' };
+  if (usd >= 1_000_000)   return { label: '보통',     color: 'text-yellow-400'  };
+  if (usd >= 100_000)     return { label: '낮음',     color: 'text-orange-400'  };
+  return                         { label: '매우 낮음', color: 'text-red-400'     };
+}
+
+// price impact % 계산 (1inch quote의 toAmountMinusFee 활용)
+// impact = (midprice_output - actual_output) / midprice_output * 100
+export function calcPriceImpact(
+  inputUsd: number,
+  outputTokens: number,
+  tokenPriceUsd: number,
+): number {
+  if (!inputUsd || !outputTokens || !tokenPriceUsd) return 0;
+  const midOutput  = inputUsd / tokenPriceUsd;       // 슬리피지 없을 때 수령량
+  const impact     = ((midOutput - outputTokens) / midOutput) * 100;
+  return Math.max(0, parseFloat(impact.toFixed(3)));
+}
+
+// RWA 토큰 주소로 풀 주소 조회 헬퍼
+export function getPoolAddress(tokenAddress: string): string | null {
+  return RWA_POOL_ADDRESSES[tokenAddress] ?? null;
+}

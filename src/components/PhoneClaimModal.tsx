@@ -20,6 +20,7 @@ interface Props {
   initialClaimType?: ClaimType;
   onClose:           () => void;
   onSuccess?:        (claimType: ClaimType) => void;
+  commitment?:       string;
 }
 
 function normalizePhone(raw: string): string {

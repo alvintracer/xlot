@@ -5,9 +5,15 @@
 // - 없음: 인증하기 버튼
 
 import { useState, useEffect } from 'react';
-import { ShieldCheck, ShieldX, ShieldAlert, Clock, ChevronRight, Loader2 } from 'lucide-react';
+import { ShieldCheck, ShieldX, ShieldAlert, Clock, ChevronRight, Loader2, UserCheck, IdCard } from 'lucide-react';
 import { getCredentials, CLAIM_CONFIG, daysUntilExpiry } from '../services/credentialService';
 import type { VerifiableCredential, ClaimType } from '../services/credentialService';
+
+const CLAIM_ICONS: Record<ClaimType, React.ElementType> = {
+  ADULT: UserCheck,
+  KOREAN: IdCard,
+  NON_SANCTIONED: ShieldCheck,
+};
 
 // ─── Single Badge ────────────────────────────────────────────────────────────
 
@@ -20,6 +26,7 @@ interface BadgeProps {
 
 export function CredentialBadge({ claimType, credential, compact = false, onRequest }: BadgeProps) {
   const config = CLAIM_CONFIG[claimType];
+  const Icon   = CLAIM_ICONS[claimType];
   const isActive  = credential?.status === 'ACTIVE';
   const isExpired = credential?.status === 'EXPIRED';
   const days      = credential && isActive ? daysUntilExpiry(credential) : 0;
@@ -34,7 +41,7 @@ export function CredentialBadge({ claimType, credential, compact = false, onRequ
           ${isActive
             ? `bg-${config.color}-500/15 border-${config.color}-500/30 text-${config.color}-400`
             : 'bg-slate-800 border-slate-700 text-slate-500 cursor-pointer hover:border-slate-500'}`}>
-        <span>{config.icon}</span>
+        <Icon size={12} strokeWidth={2.5} />
         {isActive ? config.label : `${config.label} 미인증`}
         {isActive && expiringSoon && <Clock size={8} className="text-amber-400" />}
       </span>
@@ -52,10 +59,10 @@ export function CredentialBadge({ claimType, credential, compact = false, onRequ
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
           {/* 아이콘 */}
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0
-            ${isActive ? `bg-${config.color}-500/15` : 'bg-slate-800'}`}>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
+            ${isActive ? `bg-${config.color}-500/15 text-${config.color}-400` : 'bg-slate-800'}`}>
             {isActive
-              ? <span>{config.icon}</span>
+              ? <Icon size={18} strokeWidth={2.5} />
               : isExpired
               ? <ShieldX size={16} className="text-slate-500" />
               : <ShieldAlert size={16} className="text-slate-600" />}

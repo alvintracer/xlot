@@ -48,26 +48,26 @@ export interface CredentialIssueResult {
 export const CLAIM_CONFIG: Record<ClaimType, {
   label:       string;
   description: string;
-  icon:        string;
   color:       string;
+  icon:        string;
 }> = {
   ADULT: {
     label:       '성인 인증',
     description: '만 19세 이상 확인 (행안부 실명확인)',
-    icon:        '🔞',
     color:       'cyan',
+    icon:        '🔞',
   },
   KOREAN: {
     label:       '실명 인증',
     description: '내국인 실명확인 (행안부 API)',
-    icon:        '🇰🇷',
     color:       'blue',
+    icon:        '🇰🇷',
   },
   NON_SANCTIONED: {
     label:       '비제재 인증',
     description: 'OFAC/UN 제재 대상 아님 (TranSight)',
-    icon:        '🛡️',
     color:       'emerald',
+    icon:        '🛡️',
   },
 };
 
