@@ -10,6 +10,7 @@ import { TradePage } from "./pages/TradePage";
 import { ActivityPage } from "./pages/ActivityPage";
 import { AssetsView } from "./components/AssetView";
 import { useActiveAccount } from "thirdweb/react";
+import { SSSTestPanel } from './components/SSSTestPanel';
 
 type TabId = "assets" | "swap" | "trade" | "activity";
 
@@ -38,6 +39,8 @@ export function Dashboard() {
         )}
         {activeTab === "activity" && <ActivityPage />}
       </div>
+
+      {import.meta.env.DEV && <SSSTestPanel />}
 
       {/* 하단 고정 탭바 */}
       <div className="fixed bottom-0 w-full bg-slate-900/80 backdrop-blur-md border-t border-slate-800 pb-safe pt-2 px-4 flex justify-between items-center z-50">

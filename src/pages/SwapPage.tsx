@@ -498,7 +498,8 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
     return () => { if (quoteRef.current) clearTimeout(quoteRef.current); };
   }, [fetchQuote]);
 
-  const canSwap   = ['XLOT', 'METAMASK', 'WALLETCONNECT'].includes(selectedWallet?.wallet_type || '');
+  const EVM_WALLET_TYPES = ['XLOT', 'XLOT_SSS', 'METAMASK', 'RABBY', 'WALLETCONNECT', 'BYBIT', 'BITGET', 'TRUST'];
+  const canSwap   = EVM_WALLET_TYPES.includes(selectedWallet?.wallet_type || '');
   const fxOk      = swapValueUsd < FX_THRESHOLD_USD || fxReason.trim().length >= 5;
   const canSubmit = canSwap && finalSellAmount !== '0' && !!toToken && fxOk && !!quote && !quoteLoading;
 
@@ -697,7 +698,7 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
         <div className="flex flex-col items-center gap-2 p-4 bg-orange-500/8 border border-orange-500/20 rounded-2xl text-center">
           <AlertCircle size={18} className="text-orange-400" />
           <p className="text-xs font-bold text-orange-400">스왑 미지원 지갑</p>
-          <p className="text-[10px] text-slate-400">xLOT, MetaMask, WalletConnect만 지원</p>
+          <p className="text-[10px] text-slate-400">xLOT 및 EVM 호환지갑(MetaMask, Rabby 등)만 지원</p>
         </div>
       ) : (
         <button onClick={handleSwap} disabled={!canSubmit || swapping}

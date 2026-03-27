@@ -1,11 +1,11 @@
 // src/components/WalletDetailView.tsx
-// [Phase 4] KYC 배지 표시 + 진입 위임 (모달은 AssetView에서 관리)
+// [Phase 6-A] XLOT_SSS 멀티체인 주소 표시 추가
 
 import { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft, Copy, Send, Download, History,
   ArrowUpRight, ArrowDownLeft, Loader2, RefreshCw, Globe,
-  Building2, Coins, ShieldCheck
+  Building2, Coins, ShieldCheck, Check
 } from "lucide-react";
 import { useActiveAccount } from "thirdweb/react";
 import type { WalletSlot } from "../services/walletService";
@@ -23,25 +23,44 @@ interface Props {
   onSend: () => void;
   currencyMode: 'KRW' | 'USD';
   exchangeRate: number;
-  onKycRequest?: (type?: ClaimType) => void; // AssetView에서 KYC 모달 열기 위임
+  onKycRequest?: (type?: ClaimType) => void;
 }
+
+// 주소 체인별 설정
+const CHAIN_CONFIG: Record<string, { label: string; color: string; bg: string; explorer: string }> = {
+  evm: { label: 'EVM',  color: 'text-cyan-400',   bg: 'bg-cyan-500/10',   explorer: 'https://etherscan.io/address/' },
+  sol: { label: 'SOL',  color: 'text-green-400',  bg: 'bg-green-500/10',  explorer: 'https://solscan.io/account/' },
+  btc: { label: 'BTC',  color: 'text-orange-400', bg: 'bg-orange-500/10', explorer: 'https://mempool.space/address/' },
+  trx: { label: 'TRX',  color: 'text-red-400',    bg: 'bg-red-500/10',    explorer: 'https://tronscan.org/#/address/' },
+};
 
 export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMode, exchangeRate, onKycRequest }: Props) {
   const smartAccount = useActiveAccount();
 
-  const [activities, setActivities]         = useState<ActivityItem[]>([]);
-  const [loading, setLoading]               = useState(false);
+  const [activities, setActivities]               = useState<ActivityItem[]>([]);
+  const [loading, setLoading]                     = useState(false);
   const [selectedNetworkId, setSelectedNetworkId] = useState<string>('');
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [copiedKey, setCopiedKey]                 = useState<string | null>(null);
+  const [kycRefresh]                              = useState(0);
 
-  // Phase 4: KYC — smartAccount.address가 계정 식별자
-  // 모달은 AssetView(부모)에서 관리, 여기선 배지 표시 + 진입 버튼만
-  const [kycRefresh, setKycRefresh]         = useState(0);
+  const isCex    = ['UPBIT', 'BITHUMB', 'BINANCE'].includes(wallet.wallet_type);
+  const isXlot   = wallet.wallet_type === 'XLOT';
+  const isSSSWallet = wallet.wallet_type === 'XLOT_SSS';
+  const userId   = smartAccount?.address || '';
 
-  const isCex      = ['UPBIT', 'BITHUMB', 'BINANCE'].includes(wallet.wallet_type);
-  const isXlot     = wallet.wallet_type === 'XLOT';
-  // KYC 식별자: Thirdweb smartAccount.address (계정 단위)
-  const userId     = smartAccount?.address || '';
+  // 멀티체인 주소 목록 (XLOT_SSS용)
+  const multiChainAddresses = useMemo(() => {
+    if (!isSSSWallet) return [];
+    return Object.entries({
+      evm: wallet.addresses.evm,
+      sol: wallet.addresses.sol,
+      btc: wallet.addresses.btc,
+      trx: wallet.addresses.trx,
+    })
+      .filter(([, addr]) => !!addr)
+      .map(([key, addr]) => ({ key, addr: addr!, ...CHAIN_CONFIG[key] }));
+  }, [isSSSWallet, wallet.addresses]);
 
   const availableNetworks = useMemo(() => {
     if (isCex) return [];
@@ -60,23 +79,17 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
   }, [availableNetworks, selectedNetworkId, isCex]);
 
   const loadHistory = async () => {
-    setLoading(true);
-    setActivities([]);
+    setLoading(true); setActivities([]);
     try {
       if (isCex && wallet.wallet_type === 'UPBIT') {
         if (wallet.api_access_key && wallet.api_secret_key) {
-          const data = await fetchUpbitActivity(wallet.api_access_key, wallet.api_secret_key);
-          setActivities(data);
+          setActivities(await fetchUpbitActivity(wallet.api_access_key, wallet.api_secret_key));
         }
       } else if (selectedNetworkId) {
-        const data = await fetchActivitiesByNetwork([wallet], selectedNetworkId);
-        setActivities(data);
+        setActivities(await fetchActivitiesByNetwork([wallet], selectedNetworkId));
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => {
@@ -90,21 +103,16 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
 
   const mainAddress = wallet.addresses.evm || wallet.addresses.sol || "";
 
-  const handleDepositClick = () => {
-    if (isCex && wallet.wallet_type === 'UPBIT') setIsDepositModalOpen(true);
-    else onDeposit();
-  };
-
-  const handleKycRequest = (type?: ClaimType) => {
-    if (onKycRequest) onKycRequest(type);
+  const handleCopy = (addr: string, key: string) => {
+    navigator.clipboard.writeText(addr);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 1500);
   };
 
   const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'SEND':    return <ArrowUpRight size={18} className="text-slate-400" />;
-      case 'RECEIVE': return <ArrowDownLeft size={18} className="text-blue-400" />;
-      default:        return <History size={18} className="text-slate-400" />;
-    }
+    if (type === 'RECEIVE') return <ArrowDownLeft size={18} className="text-blue-400" />;
+    if (type === 'SEND')    return <ArrowUpRight  size={18} className="text-slate-400" />;
+    return <History size={18} className="text-slate-400" />;
   };
 
   return (
@@ -117,10 +125,11 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
           <ArrowLeft size={24} />
         </button>
         <h2 className="font-bold text-lg text-white flex items-center gap-2">
-          {isCex && <Building2 size={18} className="text-indigo-400" />}
+          {isCex       && <Building2  size={18} className="text-indigo-400" />}
+          {isSSSWallet && <ShieldCheck size={18} className="text-cyan-400"  />}
           {wallet.label}
         </h2>
-        <button onClick={loadHistory} disabled={loading} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
+        <button onClick={loadHistory} disabled={loading} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white">
           <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
@@ -130,22 +139,38 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
 
         {/* 1. 상단 카드 */}
         <div className={`text-center py-8 rounded-3xl mb-6 border relative overflow-hidden
-            ${isCex ? 'bg-gradient-to-b from-indigo-900/20 to-slate-900 border-indigo-500/30' : 'bg-slate-900 border-slate-800'}`}>
+            ${isCex ? 'bg-gradient-to-b from-indigo-900/20 to-slate-900 border-indigo-500/30'
+            : isSSSWallet ? 'bg-gradient-to-b from-cyan-900/10 to-slate-900 border-cyan-500/20'
+            : 'bg-slate-900 border-slate-800'}`}>
 
-          {isCex && <div className="absolute -top-10 -right-10 text-indigo-500/5 rotate-12"><Building2 size={150} /></div>}
-
-          <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-2xl mb-4 shadow-inner relative z-10
-              ${isCex ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-800 text-white'}`}>
-            {wallet.wallet_type === 'UPBIT' ? 'Up' : wallet.label[0]}
+          <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-2xl mb-4 relative z-10
+              ${isSSSWallet ? 'bg-cyan-500/20 border-2 border-cyan-500/30 text-cyan-400'
+              : isCex ? 'bg-indigo-500/20 text-indigo-400'
+              : 'bg-slate-800 text-white'}`}>
+            {isSSSWallet ? <ShieldCheck size={28} /> : wallet.label[0]}
           </div>
 
           <p className="text-slate-500 text-sm font-bold mb-1 relative z-10">총 보유 자산</p>
           <h1 className="text-4xl font-extrabold text-white tracking-tight relative z-10">{displayValue}</h1>
 
-          {!isCex && mainAddress && (
-            <button onClick={() => { navigator.clipboard.writeText(mainAddress); alert("복사됨"); }}
-              className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 bg-slate-950/50 rounded-full border border-slate-700 text-xs text-slate-400 hover:text-white hover:border-cyan-500/50 transition-all active:scale-95 relative z-10">
-              {mainAddress.slice(0, 6)}...{mainAddress.slice(-4)} <Copy size={12} />
+          {/* SSS 지갑 배지 */}
+          {isSSSWallet && (
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <span className="text-[10px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded-full font-bold">
+                Triple-Shield
+              </span>
+              <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full">
+                비수탁
+              </span>
+            </div>
+          )}
+
+          {/* 일반 지갑 단일 주소 */}
+          {!isCex && !isSSSWallet && mainAddress && (
+            <button onClick={() => handleCopy(mainAddress, 'main')}
+              className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 bg-slate-950/50 rounded-full border border-slate-700 text-xs text-slate-400 hover:text-white hover:border-cyan-500/50 transition-all relative z-10">
+              {mainAddress.slice(0, 6)}...{mainAddress.slice(-4)}
+              {copiedKey === 'main' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
             </button>
           )}
 
@@ -155,19 +180,47 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
             </div>
           )}
 
-          {/* ── Phase 4: xLOT 전용 KYC 배지 ── */}
+          {/* KYC 배지 (XLOT 전용) */}
           {isXlot && userId && (
             <div className="mt-5 px-6 relative z-10">
-              <CompactBadgeRow
-                key={kycRefresh}
-                userId={userId}
-                onRequest={handleKycRequest}
-              />
+              <CompactBadgeRow key={kycRefresh} userId={userId} onRequest={onKycRequest} />
             </div>
           )}
         </div>
 
-        {/* ── Phase 4: xLOT 전용 KYC 섹션 ── */}
+        {/* ── XLOT_SSS 멀티체인 주소 섹션 ── */}
+        {isSSSWallet && multiChainAddresses.length > 0 && (
+          <div className="mb-6 bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck size={14} className="text-cyan-400" />
+              <span className="text-sm font-bold text-white">멀티체인 주소</span>
+            </div>
+            {multiChainAddresses.map(({ key, addr, label, color, bg, explorer }) => (
+              <div key={key} className={`${bg} border border-slate-800 rounded-2xl p-3`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className={`text-[10px] font-black ${color}`}>{label}</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => window.open(explorer + addr, '_blank')}
+                      className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors">
+                      탐색기 ↗
+                    </button>
+                    <button onClick={() => handleCopy(addr, key)}
+                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white transition-colors">
+                      {copiedKey === key
+                        ? <><Check size={10} className="text-emerald-400" /> 복사됨</>
+                        : <><Copy size={10} /> 복사</>}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs font-mono text-slate-300 break-all leading-relaxed">
+                  {addr}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* KYC 섹션 (XLOT 전용) */}
         {isXlot && userId && (
           <div className="mb-6 bg-slate-900 border border-slate-800 rounded-3xl p-4">
             <div className="flex items-center justify-between mb-3">
@@ -178,22 +231,20 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
                   Privacy-Preserving
                 </span>
               </div>
-              <button
-                onClick={() => handleKycRequest(undefined)}
-                className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors">
+              <button onClick={() => onKycRequest?.(undefined)}
+                className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300">
                 인증 관리 →
               </button>
             </div>
             <p className="text-[10px] text-slate-500 leading-relaxed">
               개인정보 저장 없이 성인·실명·비제재 인증을 완료하세요.
-              인증 완료 시 Swap, 해외송금 등 고급 기능이 활성화됩니다.
             </p>
           </div>
         )}
 
-        {/* 2. CEX 자산 리스트 */}
+        {/* CEX 자산 리스트 */}
         {isCex && wallet.assets.length > 0 && (
-          <div className="mb-8 animate-fade-in-up">
+          <div className="mb-8">
             <h3 className="text-sm font-bold text-indigo-200 mb-3 px-1 flex items-center gap-2">
               <Coins size={14} /> 보유 코인
             </h3>
@@ -207,12 +258,7 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
                   <div className="text-right">
                     <div className="text-xs font-bold text-white">{asset.balance.toLocaleString()}</div>
                     <div className="text-[10px] text-slate-500">
-                      ≈ {currencyMode === 'KRW' ? '₩' : '$'} {
-                        (currencyMode === 'KRW'
-                          ? asset.value
-                          : asset.value / exchangeRate
-                        ).toLocaleString(undefined, { maximumFractionDigits: 0 })
-                      }
+                      ≈ {currencyMode === 'KRW' ? '₩' : '$'}{(currencyMode === 'KRW' ? asset.value : asset.value / exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </div>
                   </div>
                 </div>
@@ -221,7 +267,7 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
           </div>
         )}
 
-        {/* 3. 활동 내역 */}
+        {/* 활동 내역 */}
         <div>
           <div className="flex justify-between items-end mb-4 px-1">
             <h3 className="text-sm font-bold text-slate-400">
@@ -236,10 +282,12 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
 
           {!isCex && (
             <div className="flex gap-2 overflow-x-auto pb-4 mb-2 scrollbar-hide">
-              {availableNetworks.map((net) => (
+              {availableNetworks.map(net => (
                 <button key={net.id} onClick={() => setSelectedNetworkId(net.id)}
                   className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border
-                    ${selectedNetworkId === net.id ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>
+                    ${selectedNetworkId === net.id
+                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                      : 'bg-slate-900 border-slate-800 text-slate-500'}`}>
                   {net.name}
                 </button>
               ))}
@@ -258,14 +306,14 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
             </div>
           ) : (
             <div className="space-y-3">
-              {activities.map((item) => (
+              {activities.map(item => (
                 <div key={item.id}
                   onClick={() => !isCex && item.detailUrl && window.open(item.detailUrl, '_blank')}
                   className={`flex justify-between items-center p-4 bg-slate-900/50 rounded-2xl border border-slate-800/50 transition-all
                     ${!isCex ? 'hover:bg-slate-900 cursor-pointer' : ''}`}>
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center
-                        ${item.type === 'RECEIVE' ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-800 text-slate-400'}`}>
+                        ${item.type === 'RECEIVE' ? 'bg-blue-500/10' : 'bg-slate-800'}`}>
                       {getActivityIcon(item.type)}
                     </div>
                     <div>
@@ -296,20 +344,18 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
       {/* BOTTOM ACTIONS */}
       <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 bg-gradient-to-t from-slate-950 via-slate-950 to-transparent z-20">
         <div className="flex gap-4 max-w-md mx-auto">
-          <button onClick={handleDepositClick}
+          <button onClick={() => isCex && wallet.wallet_type === 'UPBIT' ? setIsDepositModalOpen(true) : onDeposit()}
             className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg border border-slate-700">
-            <Download size={20} className={isCex ? "text-indigo-400" : "text-cyan-400"} />
-            채우기
+            <Download size={20} className={isCex ? "text-indigo-400" : "text-cyan-400"} /> 채우기
           </button>
           <button onClick={onSend}
             className={`flex-1 py-4 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg
-              ${isCex ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-900/20' : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-900/20'}`}>
+              ${isCex ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500'}`}>
             <Send size={20} /> 보내기
           </button>
         </div>
       </div>
 
-      {/* 업비트 입금 모달 */}
       {isDepositModalOpen && (
         <UpbitDepositModal wallet={wallet} onClose={() => setIsDepositModalOpen(false)} />
       )}

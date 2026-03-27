@@ -410,6 +410,32 @@ export async function addWeb3Wallet(userId: string, address: string, label: stri
     });
 }
 
+// SSS 비수탁 지갑 — EVM/SOL/BTC/TRX 주소를 한 번에 저장
+export async function addSSSWallet(
+    userId: string,
+    addresses: { evm: string; sol?: string; btc?: string; trx?: string },
+    label: string,
+) {
+    const { data } = await supabase
+        .from('user_wallets')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('address', addresses.evm.toLowerCase())
+        .maybeSingle();
+    if (data) throw new Error("이미 등록된 주소입니다.");
+
+    await supabase.from('user_wallets').insert({
+        user_id:      userId,
+        address:      addresses.evm.toLowerCase(),
+        address_sol:  addresses.sol  || null,
+        address_btc:  addresses.btc  || null,
+        address_trx:  addresses.trx  || null,
+        label,
+        wallet_type:  'XLOT_SSS',
+        device_uuid:  getDeviceId(),
+    });
+}
+
 export async function addSolanaWallet(userId: string, address: string, label: string) {
     try { new PublicKey(address); } catch (e) { throw new Error("올바른 Solana 주소 아님"); }
     const { data } = await supabase.from('user_wallets').select('id').eq('user_id', userId).eq('address', address).maybeSingle();
