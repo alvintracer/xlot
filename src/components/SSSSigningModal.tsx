@@ -17,6 +17,7 @@ import { combineShares, uint8ToString } from '../services/sssService';
 import {
   decryptShareA, decryptShareB, decryptShareC,
   loadVaultFromSupabase,
+  deriveShareKeyFromPhone, deriveShareKeyFromEmail,
 } from '../services/shareVaultService';
 
 export interface SSSSigningResult {
@@ -81,14 +82,16 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
     setStep('unlocking');
 
     try {
-      let sessionToken = '';
+      let latestKey = '';
       if (otpTarget === 'phone') {
         const { data, error } = await supabase.auth.verifyOtp({
           phone: `+82${phone.slice(1)}`, token: phoneOtp, type: 'sms',
         });
         if (error || !data.session) throw new Error('휴대폰 OTP 인증 실패');
-        sessionToken = data.session.access_token;
-        setPhoneToken(sessionToken);
+        
+        const pKey = await deriveShareKeyFromPhone(phone);
+        latestKey = pKey;
+        setPhoneToken(pKey);
 
         // B+C이면 이메일도 필요 → 이메일 OTP 전송으로 이동
         if (path === 'B+C') {
@@ -101,17 +104,19 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
           email, token: emailOtp, type: 'email',
         });
         if (error || !data.session) throw new Error('이메일 OTP 인증 실패');
-        sessionToken = data.session.access_token;
+        
+        const eKey = await deriveShareKeyFromEmail(email);
+        latestKey = eKey;
       }
 
-      await doSign(sessionToken);
+      await doSign(latestKey);
     } catch (e: any) {
       setError(e.message || '인증 실패');
       setStep('error');
     } finally { setIsLoading(false); }
   };
 
-  const doSign = async (latestToken: string) => {
+  const doSign = async (latestKey: string) => {
     if (!smartAccount) return;
     const vault = await loadVaultFromSupabase(smartAccount.address, walletAddress);
     if (!vault) throw new Error('Vault를 찾을 수 없습니다');
@@ -119,13 +124,13 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
     let shareX: any, shareY: any;
     if (path === 'A+B') {
       shareX = await decryptShareA({ iv: vault.share_a_iv, ciphertext: vault.share_a_ciphertext, salt: vault.share_a_salt }, password);
-      shareY = await decryptShareB({ iv: vault.share_b_iv, ciphertext: vault.share_b_ciphertext, salt: vault.share_b_salt }, latestToken);
+      shareY = await decryptShareB({ iv: vault.share_b_iv, ciphertext: vault.share_b_ciphertext, salt: vault.share_b_salt }, latestKey);
     } else if (path === 'A+C') {
       shareX = await decryptShareA({ iv: vault.share_a_iv, ciphertext: vault.share_a_ciphertext, salt: vault.share_a_salt }, password);
-      shareY = await decryptShareC({ iv: vault.share_c_iv, ciphertext: vault.share_c_ciphertext, salt: vault.share_c_salt }, latestToken);
+      shareY = await decryptShareC({ iv: vault.share_c_iv, ciphertext: vault.share_c_ciphertext, salt: vault.share_c_salt }, latestKey);
     } else { // B+C
       shareX = await decryptShareB({ iv: vault.share_b_iv, ciphertext: vault.share_b_ciphertext, salt: vault.share_b_salt }, phoneToken);
-      shareY = await decryptShareC({ iv: vault.share_c_iv, ciphertext: vault.share_c_ciphertext, salt: vault.share_c_salt }, latestToken);
+      shareY = await decryptShareC({ iv: vault.share_c_iv, ciphertext: vault.share_c_ciphertext, salt: vault.share_c_salt }, latestKey);
     }
 
     const mnemonic = uint8ToString(combineShares([shareX, shareY]));
