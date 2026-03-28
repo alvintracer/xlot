@@ -249,6 +249,7 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
   };
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-slate-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-800 animate-fade-in-up max-h-[90vh] overflow-y-auto custom-scrollbar">
         
@@ -273,7 +274,7 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
             {/* ── xLOT SSS 비수탁 지갑 카드 ── */}
             <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-2xl p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <ShieldCheck size={16} className="text-cyan-400" />
+                <img src="/icon-192.png" alt="xLOT" className="w-5 h-5 rounded-md object-cover" />
                 <p className="text-sm font-black text-white">xLOT 비수탁 지갑</p>
                 <span className="text-[9px] bg-cyan-500 text-white px-1.5 py-0.5 rounded font-bold">NEW</span>
               </div>
@@ -471,5 +472,22 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
 
       </div>
     </div>
+
+    {/* SSS 생성 모달 */}
+    {showSSSCreate && (
+      <XLOTWalletCreateModal
+        onClose={() => setShowSSSCreate(false)}
+        onSuccess={async () => { await onSuccess(); onClose(); }}
+      />
+    )}
+
+    {/* SSS 복구 모달 */}
+    {showSSSRecover && (
+      <XLOTWalletRecoverModal
+        onClose={() => setShowSSSRecover(false)}
+        onSuccess={async () => { await onSuccess(); onClose(); }}
+      />
+    )}
+    </>
   );
 }

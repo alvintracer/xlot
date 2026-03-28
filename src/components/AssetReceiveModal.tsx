@@ -25,11 +25,11 @@ export function ReceiveModal({ onClose }: { onClose: () => void }) {
       const validList = list.filter(w => w.wallet_type !== 'UPBIT');
       setWallets(validList);
       
-      const defaultWallet = validList.find(w => w.wallet_type === 'XLOT') || validList[0];
+      const defaultWallet = validList.find(w => w.wallet_type === 'XLOT_SSS') || validList.find(w => w.wallet_type === 'XLOT') || validList[0];
       setSelectedWallet(defaultWallet);
       
       // 지갑 바뀌면 네트워크 초기화
-      if(defaultWallet?.wallet_type === 'XLOT') setSelectedNetwork('EVM');
+      if(defaultWallet?.wallet_type === 'XLOT' || defaultWallet?.wallet_type === 'XLOT_SSS') setSelectedNetwork('EVM');
       else if(defaultWallet?.wallet_type === 'SOLANA') setSelectedNetwork('SOL');
       else if(defaultWallet?.wallet_type === 'BITCOIN') setSelectedNetwork('BTC');
       else if(defaultWallet?.wallet_type === 'TRON') setSelectedNetwork('TRON');
@@ -41,7 +41,7 @@ export function ReceiveModal({ onClose }: { onClose: () => void }) {
   // 현재 선택된 주소 가져오기
   const getCurrentAddress = () => {
     if (!selectedWallet) return "";
-    if (selectedWallet.wallet_type === 'XLOT') {
+    if (selectedWallet.wallet_type === 'XLOT' || selectedWallet.wallet_type === 'XLOT_SSS') {
       if (selectedNetwork === 'EVM') return selectedWallet.addresses.evm || "";
       if (selectedNetwork === 'SOL') return selectedWallet.addresses.sol || "";
       if (selectedNetwork === 'BTC') return selectedWallet.addresses.btc || "";
@@ -65,8 +65,8 @@ export function ReceiveModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
-      <div className="bg-slate-900 w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-8 shadow-2xl border border-slate-800 animate-fade-in-up flex flex-col items-center">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end justify-center z-[100]">
+      <div className="bg-slate-900 w-full max-w-lg rounded-t-3xl p-8 shadow-2xl border-t border-x border-slate-800 animate-slide-up flex flex-col items-center max-h-[90vh] overflow-y-auto custom-scrollbar">
         
         <div className="w-full flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-white">받기</h2>
@@ -75,15 +75,15 @@ export function ReceiveModal({ onClose }: { onClose: () => void }) {
 
         {/* 지갑 선택 */}
         <button onClick={() => setIsSelectorOpen(true)} className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full mb-6 border border-slate-700 hover:bg-slate-700 transition-all">
-          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs text-white ${selectedWallet?.wallet_type === 'XLOT' ? 'bg-cyan-500' : 'bg-slate-600'}`}>
-            {selectedWallet?.wallet_type === 'XLOT' ? <ShieldCheck size={14}/> : 'W'}
+          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs text-white overflow-hidden ${(selectedWallet?.wallet_type === 'XLOT' || selectedWallet?.wallet_type === 'XLOT_SSS') ? 'bg-slate-900 border border-slate-700' : 'bg-slate-600'}`}>
+            {(selectedWallet?.wallet_type === 'XLOT' || selectedWallet?.wallet_type === 'XLOT_SSS') ? <img src="/icon-192.png" className="w-full h-full object-cover" alt="xLOT" /> : 'W'}
           </div>
           <span className="text-sm font-bold text-white">{selectedWallet?.label}</span>
           <ChevronDown size={14} className="text-slate-400" />
         </button>
 
         {/* ✨ 네트워크 선택 칩 (xLOT일 때만 표시) */}
-        {selectedWallet?.wallet_type === 'XLOT' && (
+        {(selectedWallet?.wallet_type === 'XLOT' || selectedWallet?.wallet_type === 'XLOT_SSS') && (
           <div className="flex gap-2 mb-6 bg-slate-950 p-1 rounded-xl">
             {['EVM', 'SOL', 'BTC', 'TRON'].map(net => (
               <button

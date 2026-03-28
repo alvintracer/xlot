@@ -16,10 +16,12 @@ import { transfer } from "thirdweb/extensions/erc20";
 import { client } from "../client";
 import type { WalletSlot, WalletAsset } from "../services/walletService";
 
-// ✨ [KYT 추가]
-import { kytService } from "../services/kytService";
-import type { RiskResult, KYTStatus } from "../services/kytService";
-import { KYTGuard } from "./KYTGuard";
+
+
+// ✨ [SSS 지원]
+import { ethers } from "ethers";
+import { SSSSigningModal } from "./SSSSigningModal";
+import { sendSOL, sendTRX, sendBTC } from "../services/multiChainSendService";
 
 interface Props {
   sourceWallet: WalletSlot;
@@ -52,10 +54,12 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // ✨ [KYT 추가] KYT 상태
-  const [kytStatus, setKytStatus] = useState<KYTStatus>('idle');
-  const [kytResult, setKytResult] = useState<RiskResult | null>(null);
-  const [reason, setReason] = useState('');
+
+
+  // ✨ [SSS 추가] SSS 지갑 내부 이체 처리용
+  const [sssSigningOpen, setSssSigningOpen] = useState(false);
+  const [sssPendingTx, setSssPendingTx] = useState<((w: ethers.Wallet, mn: string) => Promise<void>) | null>(null);
+  const [sssSigningPurpose, setSssSigningPurpose] = useState('');
 
   useEffect(() => {
     if (sourceWallet.assets && sourceWallet.assets.length > 0) {
@@ -65,18 +69,13 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
   }, [sourceWallet]);
 
   const isCorrectWallet = useMemo(() => {
+    // SSS 계정은 내부 서명앱을 쓰므로 Active 연결 여부와 무관하게 허용
+    if (sourceWallet.wallet_type === 'XLOT_SSS' || sourceWallet.wallet_type === 'XLOT') return true;
     if (!account?.address || !sourceWallet.addresses.evm) return false;
     return account.address.toLowerCase() === sourceWallet.addresses.evm.toLowerCase();
   }, [account, sourceWallet]);
 
-  // ✨ [KYT 추가] amount → USD 환산 (KYTGuard에 전달)
-  const amountUSD = useMemo(() => {
-    if (!amount || !selectedAsset) return 0;
-    return parseFloat(amount) * (selectedAsset.price || 0);
-  }, [amount, selectedAsset]);
 
-  // ✨ [KYT 추가] 네트워크 이름 → TranSight 코드 매핑
-  const networkForKYT = selectedAsset?.network?.toLowerCase() ?? 'ethereum';
 
   const handleTransfer = async () => {
     if (!amount || !selectedAsset) return;
@@ -87,29 +86,58 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
       return;
     }
 
-    // ✨ [KYT 추가] 전송 전 최종 KYT 차단 체크 (이중 방어)
-    if (!kytService.canProceed(kytStatus, kytResult, reason)) {
-      if (kytService.shouldBlock(kytResult)) {
-        setError('보안 정책에 따라 이 주소로의 전송이 차단되었습니다.');
-      } else if (kytService.requiresReason(kytResult) && reason.trim().length < 5) {
-        setError('전송 사유를 입력해주세요 (최소 5자).');
-      }
-      return;
+
+
+    // ✨ XLOT_SSS일 경우 SSS 서명 프로세스 바로 진행 (매끄러운 이체)
+    if (sourceWallet.wallet_type === 'XLOT_SSS' || sourceWallet.wallet_type === 'XLOT') {
+       if (selectedAsset.symbol === 'SOL') {
+          setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
+             await sendSOL(mn, targetAddress, parseFloat(amount));
+             setStep('RESULT');
+          });
+       } else if (selectedAsset.symbol === 'TRX') {
+          setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
+             await sendTRX(mn, targetAddress, parseFloat(amount));
+             setStep('RESULT');
+          });
+       } else if (selectedAsset.symbol === 'BTC') {
+          setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
+             await sendBTC(mn, targetAddress, parseFloat(amount));
+             setStep('RESULT');
+          });
+       } else {
+         // EVM
+         const rpcUrl = selectedAsset.network === 'Amoy' 
+             ? (import.meta.env.VITE_POLYGON_AMOY_RPC || 'https://rpc-amoy.polygon.technology')
+             : (import.meta.env.VITE_SEPOLIA_RPC || 'https://rpc.sepolia.org');
+             
+         setSssPendingTx(() => async (wallet: ethers.Wallet, _mn: string) => {
+             const provider = new ethers.JsonRpcProvider(rpcUrl);
+             const connected = wallet.connect(provider);
+
+             if (selectedAsset.isNative) {
+                 const tx = await connected.sendTransaction({
+                     to: targetAddress,
+                     value: ethers.parseEther(amount)
+                 });
+                 await tx.wait();
+             } else if (selectedAsset.tokenAddress) {
+                 const abi = ['function transfer(address to, uint256 amount) returns (bool)'];
+                 const contract = new ethers.Contract(selectedAsset.tokenAddress, abi, connected);
+                 const tx = await contract.transfer(targetAddress, ethers.parseUnits(amount, 18));
+                 await tx.wait();
+             } else {
+                 throw new Error('전송 가능한 자산이 없습니다');
+             }
+             setStep('RESULT');
+         });
+       }
+       setSssSigningPurpose(`${amount} ${selectedAsset.symbol} 채우기`);
+       setSssSigningOpen(true);
+       return;
     }
 
-    // ✨ [KYT 추가] MEDIUM/HIGH 사유 로그 저장 (비동기, 논블로킹)
-    if (kytResult && kytService.requiresReason(kytResult) && reason.trim()) {
-      kytService.logReason({
-        address: targetAddress,
-        network: networkForKYT,
-        riskLevel: kytResult.riskLevel,
-        riskScore: kytResult.riskScore,
-        reason: reason.trim(),
-        userUUID: account?.address ?? 'unknown',
-        timestamp: Date.now(),
-      });
-    }
-
+    // 일반 Web3 계정
     try {
       const chainId = CHAIN_MAP[selectedAsset.network];
       if (!chainId) throw new Error(`지원하지 않는 네트워크입니다: ${selectedAsset.network}`);
@@ -149,17 +177,15 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
 
   const availableAssets = sourceWallet.assets || [];
 
-  // ✨ [KYT 추가] 전송 버튼 비활성 조건
   const isTransferDisabled =
     isPending ||
     !amount ||
     parseFloat(amount) <= 0 ||
-    !isCorrectWallet ||
-    !kytService.canProceed(kytStatus, kytResult, reason);
+    !isCorrectWallet;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/80 backdrop-blur-sm">
+      <div className="w-full max-w-lg bg-slate-900 rounded-t-3xl border-t border-x border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-slide-up">
 
         {/* Header */}
         <div className="flex justify-between items-center p-5 border-b border-slate-800 shrink-0">
@@ -189,19 +215,7 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
                 </div>
               </div>
 
-              {/* ✨ [KYT 추가] targetAddress에 대한 KYTGuard — From/To 정보 바로 아래 */}
-              <KYTGuard
-                address={targetAddress}
-                network={networkForKYT}
-                amountUSD={amountUSD}
-                kytStatus={kytStatus}
-                kytResult={kytResult}
-                reason={reason}
-                onStatusChange={setKytStatus}
-                onResultChange={setKytResult}
-                onReasonChange={setReason}
-                onScreen={kytService.screenAddress.bind(kytService)}
-              />
+
 
               {/* 2. 자산 선택 */}
               <div>
@@ -266,27 +280,23 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
                     : 'bg-slate-800 cursor-not-allowed text-slate-500'}`}
               >
                 {isPending ? <Loader2 className="animate-spin" /> : <ArrowRightLeft />}
-                {!isCorrectWallet
-                  ? '지갑 연결 필요'
-                  : kytService.shouldBlock(kytResult)
-                  ? '전송 차단됨'
-                  : kytStatus === 'checking'
-                  ? '위험도 분석 중...'
-                  : '채우기'}
+                {!isCorrectWallet ? '지갑 연결 필요' : '채우기'}
               </button>
             </div>
           )}
 
           {/* 결과 화면 */}
           {step === 'RESULT' && (
-            <div className="text-center py-10 animate-fade-in">
-              <CheckCircle size={56} className="text-green-500 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold text-white mb-2">전송 요청 완료!</h3>
-              <p className="text-slate-400 text-sm mb-8">
-                블록체인 네트워크 상황에 따라<br />
-                자산 도착까지 시간이 걸릴 수 있습니다.
+            <div className="text-center py-10 animate-fade-in px-6">
+              <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                 <span className="text-4xl">🥳</span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-3 tracking-tight">채우기가 완료되었습니다!</h3>
+              <p className="text-slate-400 text-sm mb-8 leading-relaxed">
+                나의 다른 지갑에서 성공적으로<br/>
+                자산을 가져왔습니다.
               </p>
-              <button onClick={onSuccess} className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700">
+              <button onClick={onSuccess} className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-xl font-bold transition-colors">
                 확인
               </button>
             </div>
@@ -340,6 +350,25 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
           )}
         </div>
       </div>
+
+      {sssSigningOpen && sssPendingTx && (
+        <SSSSigningModal
+          walletAddress={sourceWallet.addresses.evm!}
+          purpose={sssSigningPurpose}
+          onSigned={async (result) => {
+            try {
+               await sssPendingTx(result.wallet, result.mnemonic);
+               setSssSigningOpen(false);
+               result.cleanup();
+            } catch(e: any) {
+               setError(e.message);
+               setSssSigningOpen(false);
+               result.cleanup();
+            }
+          }}
+          onCancel={() => setSssSigningOpen(false)}
+        />
+      )}
     </div>
   );
 }

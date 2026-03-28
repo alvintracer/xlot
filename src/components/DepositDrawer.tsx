@@ -35,9 +35,13 @@ export function DepositDrawer({ myWallets, currentWalletId, onClose, onSelectSou
                  className="w-full flex items-center justify-between p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-800 transition-all group"
                >
                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg 
-                       ${wallet.wallet_type === 'UPBIT' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-800 text-slate-400'}`}>
-                       {wallet.wallet_type === 'UPBIT' ? 'Up' : wallet.label[0]}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg overflow-hidden
+                       ${wallet.wallet_type === 'UPBIT' ? 'bg-indigo-500/20 text-indigo-400' 
+                       : (wallet.wallet_type === 'XLOT' || wallet.wallet_type === 'XLOT_SSS') ? 'bg-slate-900 border border-slate-700' 
+                       : 'bg-slate-800 text-slate-400'}`}>
+                       {wallet.wallet_type === 'UPBIT' ? 'Up' 
+                       : (wallet.wallet_type === 'XLOT' || wallet.wallet_type === 'XLOT_SSS') ? <img src="/icon-192.png" className="w-full h-full object-cover" alt="xLOT" />
+                       : wallet.label[0]}
                     </div>
                     <div className="text-left">
                        <p className="font-bold text-white group-hover:text-cyan-400 transition-colors">{wallet.label}</p>

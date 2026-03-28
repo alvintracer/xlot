@@ -68,8 +68,8 @@ export function PhoneClaimModal({ onClose, onSuccess }: Props) {
       if (e) throw e;
       
       setStep('OTP');
-    } catch (e: any) {
-      setError('오류 발생: ' + e.message);
+    } catch (e: unknown) {
+      setError('오류 발생: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setLoading(false);
     }
@@ -90,8 +90,8 @@ export function PhoneClaimModal({ onClose, onSuccess }: Props) {
       if (e || !data.session) throw e || new Error('세션 생성 실패 (인증번호가 잘못되었습니다)');
       sessionToken = data.session.access_token;
       refreshToken = data.session.refresh_token;
-    } catch (e: any) {
-      setError('인증 실패: ' + e.message);
+    } catch (e: unknown) {
+      setError('인증 실패: ' + (e instanceof Error ? e.message : String(e)));
       setLoading(false);
       return;
     }
@@ -101,6 +101,7 @@ export function PhoneClaimModal({ onClose, onSuccess }: Props) {
     try {
       // Credential 저장 (우리 서버에는 PII 정보 저장 금지 지침에 따라 발급 완료 상태만 서버에 남김)
       const result = await requestCredential(
+        'NON_SANCTIONED',
         userId, 
         sessionToken, 
         refreshToken
@@ -113,8 +114,8 @@ export function PhoneClaimModal({ onClose, onSuccess }: Props) {
         throw new Error(result.error || 'Credential 저장 실패 (DB 저장 규칙 오류 등)');
       }
 
-    } catch (e: any) {
-      setError('발급 실패: ' + e.message);
+    } catch (e: unknown) {
+      setError('발급 실패: ' + (e instanceof Error ? e.message : String(e)));
       setStep('ERROR');
     } finally {
       setLoading(false);
@@ -270,7 +271,7 @@ export function PhoneClaimModal({ onClose, onSuccess }: Props) {
                 <ShieldCheck size={36} strokeWidth={2.5} />
               </div>
               <div>
-                <p className="text-lg font-black text-white">{CLAIM_CONFIG.KYC_VERIFIED.label}</p>
+                <p className="text-lg font-black text-white">{CLAIM_CONFIG.NON_SANCTIONED.label}</p>
                 <p className="text-sm text-emerald-400 font-bold mt-1 flex items-center justify-center gap-1">
                   <CheckCircle2 size={14} /> 자격 인증을 통과하였습니다
                 </p>

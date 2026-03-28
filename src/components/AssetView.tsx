@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useActiveAccount } from "thirdweb/react"; 
+import { CompactBadgeRow } from './KYCBadge';
+import { hasKYCOnDevice } from '../services/kycDeviceService';
+import { KYCRegistrationModal } from './KYCRegistrationModal';
 import { 
   Laptop, X, Plus, Trash2, Copy, RefreshCw, ShieldCheck, 
   CloudUpload, CloudDownload, MoreVertical, Monitor, Wallet, Power, 
-  TrendingUp, TrendingDown, Check
+  TrendingUp, TrendingDown, Check, Loader2
 } from "lucide-react";
 
 // Components
@@ -44,6 +47,8 @@ type CurrencyMode = 'KRW' | 'USD';
 
 export function AssetsView({ onSwapClick }: AssetsViewProps) { 
   const smartAccount = useActiveAccount(); 
+  const [showKYCReg, setShowKYCReg]       = useState(false);
+  const [kycRegRefresh, setKycRegRefresh] = useState(0);
   
   // === Data States ===
   const [wallets, setWallets] = useState<WalletSlot[]>([]);
@@ -472,7 +477,8 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
 
   const getWalletStyle = (type: string) => {
     switch (type) {
-      case 'XLOT': return { bg: 'bg-gradient-to-br from-cyan-500 to-blue-500', text: 'text-white', icon: <ShieldCheck size={20} /> };
+      case 'XLOT': return { bg: 'bg-transparent', text: '', icon: <div className="rounded-full overflow-hidden p-0.5 bg-gradient-to-br from-cyan-500 to-blue-500 shadow-lg"><img src="/icon-192.png" alt="xLOT" className="w-9 h-9 object-cover rounded-full bg-slate-900" /></div> };
+      case 'XLOT_SSS': return { bg: 'bg-transparent', text: '', icon: <div className="rounded-full overflow-hidden p-0.5 bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg"><img src="/icon-192.png" alt="xLOT SSS" className="w-9 h-9 object-cover rounded-full bg-slate-900" /></div> };
       case 'METAMASK': return { bg: 'bg-orange-500/20', text: 'text-orange-500', icon: <span className="text-lg">🦊</span> };
       case 'RABBY': return { bg: 'bg-blue-500/20', text: 'text-blue-500', icon: <span className="text-lg">🐰</span> };
       case 'PHANTOM': return { bg: 'bg-purple-500/20', text: 'text-purple-400', icon: <span className="text-lg">👻</span> };
@@ -659,7 +665,7 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
   };
 
   return (
-    <div className="p-6 pb-24 animate-fade-in"> 
+    <div className="p-6 pb-24 animate-fade-in max-w-lg mx-auto"> 
       <header className="mb-6 mt-2">
          {/* Header UI */}
          <div className="flex justify-between items-start mb-6">
@@ -713,9 +719,17 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                   <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
                </button>
             </div>
-            <div className="flex items-baseline justify-center sm:justify-start gap-2 relative">
-               <p className="text-4xl font-extrabold text-white tracking-tight">{getTotalBalanceDisplay()}</p>
-               <span className="text-lg text-slate-500 font-bold">{mode === 'KRW' ? 'KRW' : 'USD'}</span>
+            <div className="flex items-baseline justify-center sm:justify-start gap-2 relative min-h-[48px]">
+               {loading && wallets.length === 0 ? (
+                  <div className="flex items-center gap-3 h-full">
+                     <Loader2 size={28} className="animate-spin text-cyan-400" />
+                  </div>
+               ) : (
+                 <>
+                   <p className="text-4xl font-extrabold text-white tracking-tight">{getTotalBalanceDisplay()}</p>
+                   <span className="text-lg text-slate-500 font-bold">{mode === 'KRW' ? 'KRW' : 'USD'}</span>
+                 </>
+               )}
             </div>
          </div>
          <ActionButtons onSwap={onSwapClick} />
@@ -730,7 +744,27 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
           </button>
         </div>
 
-        {wallets.length === 0 ? (
+        {loading && wallets.length === 0 ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-5 rounded-2xl border border-slate-800 bg-slate-900 animate-pulse">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex gap-3 w-full">
+                    <div className="w-10 h-10 rounded-full bg-slate-800 shrink-0"></div>
+                    <div className="flex-1 space-y-2 py-1">
+                      <div className="h-4 bg-slate-800 rounded w-1/3"></div>
+                      <div className="h-3 bg-slate-800 rounded w-2/3"></div>
+                      <div className="h-3 bg-slate-800 rounded w-1/2 mt-2"></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-800/50 flex justify-between items-center">
+                  <div className="h-8 bg-slate-800 rounded-xl w-full"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : wallets.length === 0 ? (
           <div className="text-center py-10 border border-dashed border-slate-800 rounded-2xl">
             <p className="text-slate-500 text-sm">자산을 추가해보세요.</p>
           </div>
@@ -831,6 +865,31 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                       </span>
                     </div>
                 </div>
+
+                {/* KYC 배지 — XLOT / XLOT_SSS 공통 */}
+                {(wallet.wallet_type === 'XLOT' || wallet.wallet_type === 'XLOT_SSS') && smartAccount && (
+                  <div className="mt-3 pt-3 border-t border-slate-800/50"
+                    onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between gap-2">
+                      <CompactBadgeRow
+                        key={kycRegRefresh}
+                        userId={smartAccount.address}
+                        onRequest={() => setShowKYCReg(true)}
+                      />
+                      {wallet.wallet_type === 'XLOT_SSS' && (
+                        hasKYCOnDevice(smartAccount.address)
+                          ? <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0">
+                              실명 저장됨
+                            </span>
+                          : <button
+                              onClick={() => setShowKYCReg(true)}
+                              className="text-[9px] text-slate-500 hover:text-cyan-400 whitespace-nowrap shrink-0 transition-colors">
+                              실명 등록 →
+                            </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })
@@ -838,6 +897,12 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
       </div>
 
       {/* Modals */}
+      {showKYCReg && (
+        <KYCRegistrationModal
+          onClose={() => setShowKYCReg(false)}
+          onSuccess={() => setKycRegRefresh(r => r + 1)}
+        />
+      )}
       {isAddModalOpen && <AddWalletModal onClose={() => setIsAddModalOpen(false)} onSuccess={refreshData} />}
       {selectedSlotIdForAdd && <AddAddressModal slotId={selectedSlotIdForAdd} onClose={() => setSelectedSlotIdForAdd(null)} onSuccess={refreshData} />}
       {mnemonicToBackup && <SeedBackupModal mnemonic={mnemonicToBackup} onClose={() => setMnemonicToBackup(null)} />}

@@ -23,7 +23,8 @@ import type { RWAPriceMap, NAVMap } from '../services/rwaService';
 import { getSwapRoute } from '../services/swapService';
 import type { DEXRouteResult } from '../services/swapService';
 import { useActiveAccount } from 'thirdweb/react';
-import { hasValidCredential } from '../services/credentialService';
+import { hasValidKYC } from '../services/credentialService';
+import { hasKYCOnDevice } from '../services/kycDeviceService';
 import {
   X, ShieldCheck, AlertCircle, ArrowRightLeft,
   Loader2, Check, Info, ChevronRight, BarChart2
@@ -83,11 +84,18 @@ export function TradePage({ onKycRequest }: TradePageProps) {
     }).catch(console.error);
   }, []);
 
-  // KYC 체크
+  // KYC 체크 — DB 배지(NON_SANCTIONED) OR 로컬 실명 저장 여부
   useEffect(() => {
     if (!smartAccount) return;
     setIsCheckingKyc(true);
-    hasValidCredential(smartAccount.address)
+    // 로컬에 KYC 저장된 경우 즉시 통과 (PIN 입력 없이 여부만 확인)
+    if (hasKYCOnDevice(smartAccount.address)) {
+      setHasKyc(true);
+      setIsCheckingKyc(false);
+      return;
+    }
+    // 로컬 없으면 DB 배지 확인
+    hasValidKYC(smartAccount.address)
       .then(setHasKyc)
       .catch(() => setHasKyc(false))
       .finally(() => setIsCheckingKyc(false));
@@ -210,30 +218,30 @@ export function TradePage({ onKycRequest }: TradePageProps) {
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── 좌측 패널: 시장 분석 + 매수 폼 ── */}
-        <div className="w-1/2 shrink-0 border-r border-slate-800 flex flex-col overflow-hidden bg-slate-900/30">
+        <div className="w-[420px] shrink-0 border-r border-slate-800 flex flex-col overflow-hidden">
 
           {/* 자산 선택 헤더 */}
-          <div className={`flex items-center gap-4 px-6 py-5 border-b border-slate-800 ${colors.bg}`}>
-            <div className={`w-14 h-14 rounded-2xl ${colors.bg} border ${colors.border} flex items-center justify-center text-3xl shrink-0`}>
+          <div className={`flex items-center gap-3 px-5 py-4 border-b border-slate-800 ${colors.bg}`}>
+            <div className={`w-10 h-10 rounded-xl ${colors.bg} border ${colors.border} flex items-center justify-center text-xl shrink-0`}>
               {colors.icon}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl font-black text-white">{activeAsset.symbol}</span>
-                <span className={`text-xs font-bold px-2 py-1 rounded-md ${colors.bg} ${colors.text} border ${colors.border}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-black text-white">{activeAsset.symbol}</span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${colors.bg} ${colors.text} border ${colors.border}`}>
                   {formatApy(activeAsset.fallbackApy)}
                 </span>
               </div>
-              <p className="text-sm text-slate-400 mt-1 truncate">{activeAsset.name}</p>
+              <p className="text-xs text-slate-500 truncate">{activeAsset.name}</p>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-xs text-slate-400 font-bold mb-1">{getChainName(activeAsset.chainId)}</p>
-              <p className="text-xs text-slate-500">{activeAsset.issuer}</p>
+              <p className="text-[10px] text-slate-500">{getChainName(activeAsset.chainId)}</p>
+              <p className="text-[10px] text-slate-500">{activeAsset.issuer}</p>
             </div>
           </div>
 
           {/* 스크롤 영역: 시각화 + 매수 폼 */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pt-4 pb-24 space-y-4">
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4">
 
             {/* 시장 분석 시각화 */}
             {navData && (
@@ -246,26 +254,26 @@ export function TradePage({ onKycRequest }: TradePageProps) {
             )}
 
             {/* 매수 폼 */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-              <p className="text-sm font-black text-white">매수</p>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <p className="text-xs font-black text-white">매수</p>
 
               {/* USDC 입력 */}
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 focus-within:border-slate-600 transition-colors">
-                <div className="flex justify-between mb-3">
-                  <span className="text-sm text-slate-400 font-bold">지불 (USDC)</span>
-                  <span className="text-xs text-slate-500">최소 ${activeAsset.minInvestmentUsd.toLocaleString()}</span>
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 focus-within:border-slate-600 transition-colors">
+                <div className="flex justify-between mb-2">
+                  <span className="text-[10px] text-slate-500">지불 (USDC)</span>
+                  <span className="text-[10px] text-slate-500">최소 ${activeAsset.minInvestmentUsd.toLocaleString()}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-sm font-black text-blue-400 shrink-0">$</div>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-xs font-black text-blue-400 shrink-0">$</div>
                   <input
                     type="number" value={amountUsdc}
                     onChange={e => { setAmountUsdc(e.target.value); setBuyStep('idle'); }}
                     placeholder="0.00"
-                    className="flex-1 min-w-0 bg-transparent text-right text-4xl font-black text-white outline-none placeholder-slate-700"
+                    className="flex-1 bg-transparent text-right text-2xl font-black text-white outline-none placeholder-slate-700"
                   />
                 </div>
-                <div className="text-right mt-2 w-full truncate">
-                  <span className="text-xs text-slate-600 font-mono">
+                <div className="text-right mt-1">
+                  <span className="text-[10px] text-slate-600 font-mono">
                     ≈ ₩{(usdcAmount * exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
                 </div>
@@ -273,35 +281,35 @@ export function TradePage({ onKycRequest }: TradePageProps) {
 
               {/* 화살표 */}
               <div className="flex justify-center">
-                <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 text-slate-500">
-                  <ArrowRightLeft size={16} className="rotate-90" />
+                <div className="bg-slate-800 p-1.5 rounded-lg border border-slate-700 text-slate-500">
+                  <ArrowRightLeft size={14} className="rotate-90" />
                 </div>
               </div>
 
               {/* 받는 자산 */}
-              <div className={`${colors.bg} border ${colors.border} rounded-xl p-5`}>
+              <div className={`${colors.bg} border ${colors.border} rounded-xl p-3`}>
                 <div className="flex justify-between mb-1">
-                  <span className="text-sm text-slate-400 font-bold">받기 ({activeAsset.symbol})</span>
-                  <span className="text-xs text-slate-500">
-                    {isRouteFetching ? '경로 탐색 중...' : panelRoute ? '⚡ 1inch 견적' : '예상 수령액'}
+                  <span className="text-[10px] text-slate-400">받기 ({activeAsset.symbol})</span>
+                  <span className="text-[9px] text-slate-500">
+                    {isRouteFetching ? '조회 중...' : panelRoute ? '⚡ 1inch' : '예상'}
                   </span>
                 </div>
-                <p className={`text-4xl mt-3 font-black text-right break-all ${colors.text}`}>
+                <p className={`text-2xl font-black text-right ${colors.text}`}>
                   {panelRoute ? panelRoute.toAmountDisplay : estimatedRwa}
                 </p>
               </div>
 
               {/* FX 목적 선택 */}
               {(needsFxGate || buyStep === 'fx') && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Info size={14} className="text-amber-400 shrink-0" />
-                    <p className="text-xs text-amber-300 font-bold">외국환거래법 — 거래 목적 필수</p>
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Info size={11} className="text-amber-400 shrink-0" />
+                    <p className="text-[10px] text-amber-300 font-bold">외국환거래법 — 거래 목적 필수</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {FX_PURPOSE_OPTIONS.map(opt => (
                       <button key={opt} onClick={() => { setFxPurpose(opt); setBuyStep('idle'); }}
-                        className={`text-xs font-bold px-3 py-2.5 rounded-xl border transition-all text-left ${
+                        className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border transition-all text-left ${
                           fxPurpose === opt
                             ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
                             : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'}`}>
@@ -313,37 +321,37 @@ export function TradePage({ onKycRequest }: TradePageProps) {
               )}
 
               {/* KYC 상태 */}
-              <div className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${
-                isCheckingKyc ? 'bg-slate-900 border-slate-800' :
-                hasKyc ? 'bg-emerald-500/10 border-emerald-500/20' :
-                         'bg-red-500/10 border-red-500/20'}`}>
-                {isCheckingKyc ? <Loader2 size={16} className="animate-spin text-slate-500" />
-                  : hasKyc ? <ShieldCheck size={16} className="text-emerald-400" />
-                  : <AlertCircle size={16} className="text-red-400" />}
-                <span className={`text-xs font-bold ${
+              <div className={`flex items-center gap-2 rounded-xl px-3 py-2 ${
+                isCheckingKyc ? 'bg-slate-900 border border-slate-800' :
+                hasKyc ? 'bg-emerald-500/10 border border-emerald-500/20' :
+                         'bg-red-500/10 border border-red-500/20'}`}>
+                {isCheckingKyc ? <Loader2 size={11} className="animate-spin text-slate-500" />
+                  : hasKyc ? <ShieldCheck size={11} className="text-emerald-400" />
+                  : <AlertCircle size={11} className="text-red-400" />}
+                <span className={`text-[10px] font-bold ${
                   isCheckingKyc ? 'text-slate-500' : hasKyc ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {isCheckingKyc ? 'KYC 확인 중...' : hasKyc ? 'KYC 인증 완료' : 'KYC 인증 필요 (자산 매수에 필수)'}
+                  {isCheckingKyc ? 'KYC 확인 중...' : hasKyc ? 'KYC 인증 완료' : 'KYC 인증 필요'}
                 </span>
                 {!hasKyc && !isCheckingKyc && (
                   <button onClick={() => onKycRequest?.()}
-                    className="ml-auto text-xs text-cyan-400 hover:text-cyan-300 font-bold px-3 py-1 bg-cyan-500/10 rounded-lg whitespace-nowrap">
-                    인증하기
+                    className="ml-auto text-[10px] text-cyan-400 hover:text-cyan-300 font-bold">
+                    인증 →
                   </button>
                 )}
               </div>
 
               {/* 매수 버튼 */}
               {buyStep === 'done' ? (
-                <div className="w-full py-4 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center gap-2 shadow-lg">
-                  <Check size={18} className="text-emerald-400" />
-                  <span className="text-base font-black text-emerald-400">매수 완료</span>
+                <div className="w-full py-3 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center gap-2">
+                  <Check size={14} className="text-emerald-400" />
+                  <span className="text-sm font-black text-emerald-400">매수 완료</span>
                 </div>
               ) : (
                 <button onClick={handleBuy} disabled={!canBuy}
-                  className="w-full py-4 rounded-xl font-black text-base text-white bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:shadow-[0_0_30px_rgba(16,185,129,0.3)] disabled:opacity-40 disabled:shadow-none transition-all">
+                  className="w-full py-3 rounded-xl font-black text-sm text-white bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:opacity-40 disabled:shadow-none transition-all">
                   {!canBuy && usdcAmount < activeAsset.minInvestmentUsd
                     ? `최소 $${activeAsset.minInvestmentUsd.toLocaleString()} 이상`
-                    : !hasKyc ? 'KYC 인증 후 매수하기'
+                    : !hasKyc ? 'KYC 인증 후 매수'
                     : needsFxGate && !fxPurpose ? '거래 목적 선택 후 매수'
                     : `${activeAsset.symbol} 매수하기`}
                 </button>
@@ -382,7 +390,7 @@ function PCAssetList({
   isLoading: boolean;
 }) {
   return (
-    <div className="p-5 pb-24 space-y-3">
+    <div className="p-5 space-y-3">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-black text-white">자산 목록</p>

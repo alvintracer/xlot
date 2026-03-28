@@ -20,8 +20,9 @@ import {
 } from '../services/shareVaultService';
 
 export interface SSSSigningResult {
-  wallet:  ethers.Wallet;
-  cleanup: () => void;
+  wallet:   ethers.Wallet;
+  mnemonic: string;  // SOL/TRX/BTC 키 파생용
+  cleanup:  () => void;
 }
 
 interface Props {
@@ -63,12 +64,7 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
         const { error } = await supabase.auth.signInWithOtp({ phone: `+82${phone.slice(1)}` });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signInWithOtp({ 
-  email,
-  options: {
-    shouldCreateUser: false, // 신규 가입 방지
-  }
-});
+        const { error } = await supabase.auth.signInWithOtp({ email });
         if (error) throw error;
       }
       setOtpTarget(target);
@@ -140,7 +136,7 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
       throw new Error('인증 정보가 올바르지 않습니다');
     }
 
-    onSigned({ wallet, cleanup: () => { setPassword(''); setPhoneOtp(''); setEmailOtp(''); } });
+    onSigned({ wallet, mnemonic, cleanup: () => { setPassword(''); setPhoneOtp(''); setEmailOtp(''); } });
   };
 
   const handleInputNext = async () => {

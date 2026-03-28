@@ -21,7 +21,7 @@ import type { RWAPriceMap, NAVData } from '../services/rwaService';
 import {
   getSwapQuote, executeSwap, checkAllowance, buildApprovalTx, EXPLORER,
   getSwapRoute, getDexLabel, getDexColor,
-  formatLiquidity, getLiquidityLevel, calcPriceImpact,
+  formatLiquidity, getLiquidityLevel,
 } from '../services/swapService';
 import type { SwapQuote, DEXRouteResult } from '../services/swapService';
 // Fix 1: hasValidCredential은 (userId, claimType) 시그니처 — credentials 배열 state 제거
@@ -83,7 +83,7 @@ export function RWASwapModal({ asset, prices, navData, onClose, onKycRequest }: 
     if (!smartAccount) return;
     setIsCheckingKyc(true);
     // hasValidCredential은 async (userId, claimType) → Promise<boolean>
-    hasValidCredential(smartAccount.address)
+    hasValidCredential(smartAccount.address, 'NON_SANCTIONED')
       .then(setHasKyc)
       .catch(() => setHasKyc(false))
       .finally(() => setIsCheckingKyc(false));
@@ -180,6 +180,7 @@ export function RWASwapModal({ asset, prices, navData, onClose, onKycRequest }: 
 
   const handleExecute = async () => {
     if (!smartAccount || !quote) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const provider = (window as any).ethereum;
     if (!provider) { setErrorMsg('지갑 프로바이더를 찾을 수 없습니다.'); setStep('error'); return; }
     try {

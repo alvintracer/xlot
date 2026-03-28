@@ -327,7 +327,7 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
             wallet.total_value_krw = Math.floor(totalUsd * exchangeRate) + (wallet.balances.krw || 0);
 
             // Display String Logic
-            if (['XLOT', 'METAMASK', 'RABBY', 'MANUAL'].includes(wallet.wallet_type)) {
+            if (['XLOT', 'XLOT_SSS', 'METAMASK', 'RABBY', 'MANUAL'].includes(wallet.wallet_type)) {
                 wallet.balanceDisplay = `≈ ₩ ${wallet.total_value_krw.toLocaleString()}`;
             } else if (wallet.wallet_type === 'SOLANA') {
                 wallet.balanceDisplay = `${(wallet.balances.sol || 0).toFixed(2)} SOL`;
@@ -375,10 +375,11 @@ export async function addKeyToExistingWallet(walletId: string, access: string, s
     }, { onConflict: 'wallet_id, device_uuid' });
 }
 
-export async function ensureMainWallet(userId: string, evmAddress: string, solAddress?: string) {
+// Thirdweb AA 스마트 월렛 (EVM 전용) — Solana 주소 제거
+export async function ensureMainWallet(userId: string, evmAddress: string) {
     const { data } = await supabase
         .from('user_wallets')
-        .select('id, address_sol')
+        .select('id')
         .eq('user_id', userId)
         .eq('wallet_type', 'XLOT')
         .maybeSingle();
@@ -387,13 +388,10 @@ export async function ensureMainWallet(userId: string, evmAddress: string, solAd
         await supabase.from('user_wallets').insert({
             user_id: userId,
             wallet_type: 'XLOT',
-            label: "xLOT 메인 지갑",
+            label: "xLOT 스마트 이더리움 월렛",
             address: evmAddress,
-            address_sol: solAddress || null,
             device_uuid: getDeviceId()
         });
-    } else if (data && !data.address_sol && solAddress) {
-        await supabase.from('user_wallets').update({ address_sol: solAddress }).eq('id', data.id);
     }
 }
 

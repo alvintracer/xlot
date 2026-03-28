@@ -1,32 +1,45 @@
-// src/components/KYCBadge.tsx
-// 수정판: 단일 통합 KYC 배지
+// ============================================================
+// KYCBadge.tsx
+//
+// credentialService: NON_SANCTIONED ACTIVE → "KYC Verified" 배지
+// kycDeviceService:  로컬 실명 저장 여부 (별도, 이 파일에서 다루지 않음)
+//
+// CompactBadgeRow: 슬롯 카드 하단용 (compact)
+// CredentialPanel: WalletDetailView 내부 섹션용
+// ============================================================
 
 import { useState, useEffect } from 'react';
 import { ShieldCheck, ShieldAlert, Clock, ChevronRight, Loader2 } from 'lucide-react';
-import { getCredentials, CLAIM_CONFIG, daysUntilExpiry } from '../services/credentialService';
+import {
+  getCredentials, daysUntilExpiry, KYC_DISPLAY_CLAIM, CLAIM_CONFIG,
+} from '../services/credentialService';
 import type { VerifiableCredential } from '../services/credentialService';
 
+// ── 단일 배지 ─────────────────────────────────────────────────
 interface BadgeProps {
   credential?: VerifiableCredential;
-  compact?: boolean;
-  onRequest?: () => void;
+  compact?:    boolean;
+  onRequest?:  () => void;
 }
 
 export function CredentialBadge({ credential, compact = false, onRequest }: BadgeProps) {
-  const config = CLAIM_CONFIG.KYC_VERIFIED;
-  const isActive  = credential?.status === 'ACTIVE';
-  const isExpired = credential?.status === 'EXPIRED';
-  const days      = credential && isActive ? daysUntilExpiry(credential) : 0;
+  const config       = CLAIM_CONFIG[KYC_DISPLAY_CLAIM]; // NON_SANCTIONED → "KYC Verified"
+  const isActive     = credential?.status === 'ACTIVE';
+  const isExpired    = credential?.status === 'EXPIRED';
+  const days         = credential && isActive ? daysUntilExpiry(credential) : 0;
   const expiringSoon = days > 0 && days <= 30;
 
+  // ── compact 모드 (슬롯 카드 하단) ──────────────────────────
   if (compact) {
     return (
       <span
         onClick={() => !isActive && onRequest?.()}
         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border transition-all
           ${isActive
-            ? `bg-emerald-500/15 border-emerald-500/30 text-emerald-400`
-            : 'bg-slate-800/80 border-slate-700 text-slate-400 cursor-pointer hover:border-slate-500 hover:text-white'}`}>
+            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+            : 'bg-slate-800/80 border-slate-700 text-slate-400 cursor-pointer hover:border-slate-500 hover:text-white'
+          }`}
+      >
         <ShieldCheck size={12} strokeWidth={2.5} />
         {isActive ? config.label : `${config.label} 필요`}
         {isActive && expiringSoon && <Clock size={8} className="text-amber-400" />}
@@ -34,23 +47,27 @@ export function CredentialBadge({ credential, compact = false, onRequest }: Badg
     );
   }
 
+  // ── full 모드 (WalletDetailView) ─────────────────────────
   return (
-    <div className={`rounded-2xl border p-4 transition-all shadow-lg
+    <div className={`rounded-2xl border p-4 transition-all
       ${isActive
-        ? `bg-emerald-500/10 border-emerald-500/30`
+        ? 'bg-emerald-500/10 border-emerald-500/30'
         : isExpired
         ? 'bg-slate-800/40 border-slate-700/40'
         : 'bg-slate-900 border-slate-800 border-dashed'}`}>
+
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0
-            ${isActive ? `bg-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]` : 'bg-slate-800/80'}`}>
+            ${isActive
+              ? 'bg-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+              : 'bg-slate-800/80'}`}>
             {isActive
               ? <ShieldCheck size={20} strokeWidth={2.5} />
               : <ShieldAlert size={20} className="text-slate-500" />}
           </div>
           <div>
-            <p className={`text-sm font-bold tracking-tight ${isActive ? `text-emerald-400` : 'text-slate-300'}`}>
+            <p className={`text-sm font-bold ${isActive ? 'text-emerald-400' : 'text-slate-300'}`}>
               {config.label}
             </p>
             <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
@@ -59,22 +76,19 @@ export function CredentialBadge({ credential, compact = false, onRequest }: Badg
                   ? `${days}일 후 만료 — 갱신 권장`
                   : config.description
                 : isExpired
-                ? '인증이 만료되었습니다. 재인증 필요'
-                : '미인증 — 모든 자산 거래가 제한됩니다'}
+                ? '인증이 만료되었습니다'
+                : '미인증 — KYC 인증을 완료해주세요'}
             </p>
           </div>
         </div>
 
         {isActive ? (
           <div className="shrink-0 text-right">
-            <div className={`flex items-center justify-end gap-1 text-[10px] font-black text-emerald-400 uppercase tracking-widest`}>
-              <span>Verified</span>
-            </div>
-            <p className="text-[9px] text-slate-500 mt-1 font-mono">{days}일 유효</p>
+            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Verified</p>
+            <p className="text-[9px] text-slate-500 mt-0.5 font-mono">{days}일 유효</p>
           </div>
         ) : (
-          <button
-            onClick={onRequest}
+          <button onClick={onRequest}
             className="shrink-0 flex items-center gap-1 text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
             {isExpired ? '갱신하기' : '인증하기'}
             <ChevronRight size={12} strokeWidth={3} />
@@ -83,12 +97,11 @@ export function CredentialBadge({ credential, compact = false, onRequest }: Badg
       </div>
 
       {isActive && credential?.txHash && (
-        <div className="mt-3 pt-3 border-t border-slate-800/50 flexjustify-end">
-          <a
-            href={`https://amoy.polygonscan.com/tx/${credential.txHash}`}
+        <div className="mt-3 pt-3 border-t border-slate-800/50">
+          <a href={`https://amoy.polygonscan.com/tx/${credential.txHash}`}
             target="_blank" rel="noopener noreferrer"
             className="text-[10px] text-slate-600 hover:text-emerald-400 font-mono transition-colors flex items-center gap-1 bg-slate-950/50 px-2 py-1 rounded-md w-fit">
-            <span>TX:</span> {credential.txHash.slice(0, 16)}...
+            TX: {credential.txHash.slice(0,16)}...
           </a>
         </div>
       )}
@@ -96,23 +109,23 @@ export function CredentialBadge({ credential, compact = false, onRequest }: Badg
   );
 }
 
-// ─── Credential Panel (프로필용) ────────────────────────────────────────────
-
-interface CredentialPanelProps {
-  userId: string;
+// ── CredentialPanel (WalletDetailView 내부 섹션) ──────────────
+interface PanelProps {
+  userId:          string;
   onRequestClaim?: () => void;
 }
 
-export function CredentialPanel({ userId, onRequestClaim }: CredentialPanelProps) {
+export function CredentialPanel({ userId, onRequestClaim }: PanelProps) {
   const [credential, setCredential] = useState<VerifiableCredential | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
     if (!userId) return;
     setLoading(true);
     getCredentials(userId)
       .then(creds => {
-        const active = creds.find(c => c.status === 'ACTIVE');
+        // NON_SANCTIONED ACTIVE 우선, 없으면 첫 번째
+        const active = creds.find(c => c.type === 'NON_SANCTIONED' && c.status === 'ACTIVE');
         setCredential(active || creds[0] || null);
       })
       .finally(() => setLoading(false));
@@ -125,40 +138,39 @@ export function CredentialPanel({ userId, onRequestClaim }: CredentialPanelProps
   );
 
   return (
-    <div className="space-y-4">
-      {/* 부분: 통과 여부 */}
-      <CredentialBadge
-        credential={credential || undefined}
-        onRequest={onRequestClaim}
-      />
-    </div>
+    <CredentialBadge
+      credential={credential || undefined}
+      onRequest={onRequestClaim}
+    />
   );
 }
 
-// ─── Compact Row (AssetView 카드 하단 배지) ───────────────────────────────────
-
-interface CompactBadgeRowProps {
-  userId: string;
+// ── CompactBadgeRow (슬롯 카드 하단) ─────────────────────────
+interface CompactRowProps {
+  userId:     string;
   onRequest?: () => void;
 }
 
-export function CompactBadgeRow({ userId, onRequest }: CompactBadgeRowProps) {
+export function CompactBadgeRow({ userId, onRequest }: CompactRowProps) {
   const [credential, setCredential] = useState<VerifiableCredential | null>(null);
 
   useEffect(() => {
     if (!userId) return;
     getCredentials(userId).then(creds => {
-      setCredential(creds.find(c => c.status === 'ACTIVE') || null);
+      // NON_SANCTIONED ACTIVE가 있으면 그것으로 표시
+      setCredential(
+        creds.find(c => c.type === 'NON_SANCTIONED' && c.status === 'ACTIVE')
+        || creds.find(c => c.status === 'ACTIVE')
+        || null,
+      );
     });
   }, [userId]);
 
   return (
-    <div className="flex">
-      <CredentialBadge
-        credential={credential || undefined}
-        compact
-        onRequest={onRequest}
-      />
-    </div>
+    <CredentialBadge
+      credential={credential || undefined}
+      compact
+      onRequest={onRequest}
+    />
   );
 }

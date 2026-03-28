@@ -33,6 +33,19 @@ import type { WalletSlot, WalletAsset } from "../services/walletService";
 import { fetchCryptoPrices } from "../services/priceService";
 import type { PriceData } from "../services/priceService";
 import { supabase } from "../lib/supabase"; 
+import type {
+  TravelRulePayload
+} from '../services/travelRuleService';
+import {
+  requiresTravelRule,
+  generateReferenceId,
+  encodeReferenceIdCalldata,
+  encryptTravelRuleData,
+  saveTravelRulePackage,
+  updateTravelRuleTxHash,
+} from '../services/travelRuleService';
+import { TravelRuleModal } from './TravelRuleModal';
+import { sendSOL, sendTRX, sendBTC } from '../services/multiChainSendService';
 import { ethers } from "ethers";
 import { SSSSigningModal } from "./SSSSigningModal";
 import type { SSSSigningResult } from "./SSSSigningModal";
@@ -76,7 +89,10 @@ export function SendModal({ onClose }: { onClose: () => void }) {
 
   // === SSS 서명 모달 ===
   const [sssSigningOpen, setSssSigningOpen]       = useState(false);
-  const [sssPendingTx, setSssPendingTx]           = useState<((w: ethers.Wallet) => Promise<void>) | null>(null);
+  const [sssPendingTx, setSssPendingTx]           = useState<((w: ethers.Wallet, mnemonic: string) => Promise<void>) | null>(null);
+  const [showTravelRule, setShowTravelRule]           = useState(false);
+  const [travelRuleRefId, setTravelRuleRefId]         = useState<string | null>(null);
+  const [travelRulePayload, setTravelRulePayload]     = useState<TravelRulePayload | null>(null);
   const [sssSigningPurpose, setSssSigningPurpose] = useState('');
 
   // === Blockchain Hooks ===
@@ -108,7 +124,7 @@ export function SendModal({ onClose }: { onClose: () => void }) {
         setWallets(validWallets);
         setPrices(priceData);
         
-        const defaultWallet = validWallets.find(w => w.wallet_type === 'XLOT') || validWallets[0];
+        const defaultWallet = validWallets.find(w => w.wallet_type === 'XLOT_SSS') || validWallets.find(w => w.wallet_type === 'XLOT') || validWallets[0];
         setSelectedWallet(defaultWallet);
       } catch (e) { console.error(e); } finally { setIsLoading(false); }
     };
@@ -118,14 +134,40 @@ export function SendModal({ onClose }: { onClose: () => void }) {
   // --- 자산 목록 로직 ---
   const availableAssets = useMemo(() => {
     if (!selectedWallet) return [];
+
+    // XLOT_SSS: 4체인 네이티브 자산 항상 표시
+    if (selectedWallet.wallet_type === 'XLOT_SSS') {
+      const assets = selectedWallet.assets || [];
+      const result: WalletAsset[] = [];
+      if (selectedWallet.addresses.evm) {
+        const evmAssets = assets.filter(a => ['Ethereum','Polygon','Sepolia','Amoy'].includes(a.network));
+        result.push(...(evmAssets.length > 0 ? evmAssets : [{
+          symbol: 'ETH', name: 'Ethereum', balance: selectedWallet.balances?.evm || 0,
+          price: prices?.tokens?.eth?.usd || 0, value: 0, change: 0, network: 'Ethereum', isNative: true
+        } as WalletAsset]));
+      }
+      if (selectedWallet.addresses.sol) {
+        const s = assets.find(a => a.symbol === 'SOL');
+        result.push(s || { symbol: 'SOL', name: 'Solana', balance: 0, price: prices?.tokens?.sol?.usd || 0, value: 0, change: 0, network: 'Solana', isNative: true } as WalletAsset);
+      }
+      if (selectedWallet.addresses.btc) {
+        const b = assets.find(a => a.symbol === 'BTC');
+        result.push(b || { symbol: 'BTC', name: 'Bitcoin', balance: 0, price: prices?.tokens?.btc?.usd || 0, value: 0, change: 0, network: 'Bitcoin', isNative: true } as WalletAsset);
+      }
+      if (selectedWallet.addresses.trx) {
+        const t = assets.find(a => a.symbol === 'TRX');
+        result.push(t || { symbol: 'TRX', name: 'Tron', balance: 0, price: prices?.tokens?.trx?.usd || 0, value: 0, change: 0, network: 'Tron', isNative: true } as WalletAsset);
+      }
+      return result;
+    }
+
+    // 일반 지갑
     if (!selectedWallet.assets || selectedWallet.assets.length === 0) {
-        if (selectedWallet.addresses.evm) {
-            return [{
-                symbol: 'ETH', name: 'Ethereum', balance: selectedWallet.balances.evm || 0,
-                price: prices?.tokens.eth.usd || 0, value: 0, change: 0, network: 'Sepolia', isNative: true
-            } as WalletAsset];
-        }
-        return [];
+      if (selectedWallet.addresses.evm) {
+        return [{ symbol: 'ETH', name: 'Ethereum', balance: selectedWallet.balances?.evm || 0,
+          price: prices?.tokens?.eth?.usd || 0, value: 0, change: 0, network: 'Sepolia', isNative: true } as WalletAsset];
+      }
+      return [];
     }
     return selectedWallet.assets;
   }, [selectedWallet, prices]);
@@ -264,6 +306,16 @@ export function SendModal({ onClose }: { onClose: () => void }) {
       return;
     }
 
+    // ── Travel Rule (100만원 이상) ──────────────────────────────
+    if (sendType === 'ADDRESS' && !travelRuleRefId) {
+      const amountUsd = parseFloat(finalTokenAmount) * (selectedAsset?.price || 0);
+      const amountKrw = Math.floor(amountUsd * (prices?.exchangeRate || 1450));
+      if (requiresTravelRule(amountKrw)) {
+        setShowTravelRule(true);
+        return;
+      }
+    }
+
     // B. 지갑 주소 송금
     if (sendType === 'ADDRESS') {
         if (!toAddress) return alert("받는 주소를 입력해주세요.");
@@ -271,6 +323,66 @@ export function SendModal({ onClose }: { onClose: () => void }) {
         try {
             // ── XLOT_SSS: SSS 서명 모달 경유 ──────────────────────────
             if (selectedWallet.wallet_type === 'XLOT_SSS') {
+              // ── SOL 전송 ────────────────────────────────────────
+              if (selectedAsset?.symbol === 'SOL') {
+                const currentRefId = travelRuleRefId;
+                const currentPayload = travelRulePayload;
+                setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
+                  const result = await sendSOL(mn, toAddress, parseFloat(finalTokenAmount), currentRefId || undefined);
+                  if (currentRefId && currentPayload) {
+                    try {
+                      const { encryptTravelRuleData, saveTravelRulePackage } = await import('../services/travelRuleService');
+                      const pkg = await encryptTravelRuleData(currentPayload, currentRefId);
+                      await saveTravelRulePackage(pkg, result.txHash, 'SOL');
+                    } catch(e) { console.error('TR 저장 실패:', e); }
+                  }
+                  alert(`SOL 전송 완료! Tx: ${result.txHash.slice(0,20)}...`);
+                  onClose();
+                });
+                setSssSigningPurpose(`${finalTokenAmount} SOL → ${toAddress.slice(0,8)}...`);
+                setSssSigningOpen(true);
+                return;
+              }
+              // ── TRX 전송 ────────────────────────────────────────
+              if (selectedAsset?.symbol === 'TRX') {
+                const currentRefId = travelRuleRefId;
+                const currentPayload = travelRulePayload;
+                setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
+                  const result = await sendTRX(mn, toAddress, parseFloat(finalTokenAmount), currentRefId || undefined);
+                  if (currentRefId && currentPayload) {
+                    try {
+                      const { encryptTravelRuleData, saveTravelRulePackage } = await import('../services/travelRuleService');
+                      const pkg = await encryptTravelRuleData(currentPayload, currentRefId);
+                      await saveTravelRulePackage(pkg, result.txHash, 'TRX');
+                    } catch(e) { console.error('TR 저장 실패:', e); }
+                  }
+                  alert(`TRX 전송 완료! Tx: ${result.txHash.slice(0,20)}...`);
+                  onClose();
+                });
+                setSssSigningPurpose(`${finalTokenAmount} TRX → ${toAddress.slice(0,8)}...`);
+                setSssSigningOpen(true);
+                return;
+              }
+              // ── BTC 전송 ────────────────────────────────────────
+              if (selectedAsset?.symbol === 'BTC') {
+                const currentRefId = travelRuleRefId;
+                const currentPayload = travelRulePayload;
+                setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
+                  const result = await sendBTC(mn, toAddress, parseFloat(finalTokenAmount), currentRefId || undefined);
+                  if (currentRefId && currentPayload) {
+                    try {
+                      const { encryptTravelRuleData, saveTravelRulePackage } = await import('../services/travelRuleService');
+                      const pkg = await encryptTravelRuleData(currentPayload, currentRefId);
+                      await saveTravelRulePackage(pkg, result.txHash, 'BTC');
+                    } catch(e) { console.error('TR 저장 실패:', e); }
+                  }
+                  alert(`BTC 전송 완료! Tx: ${result.txHash.slice(0,20)}...`);
+                  onClose();
+                });
+                setSssSigningPurpose(`${finalTokenAmount} BTC → ${toAddress.slice(0,8)}...`);
+                setSssSigningOpen(true);
+                return;
+              }
                 const evmAddress = selectedWallet.addresses.evm;
                 if (!evmAddress) return alert('EVM 주소를 찾을 수 없습니다');
 
@@ -281,22 +393,41 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                 const purpose = `${finalTokenAmount} ${selectedAsset.symbol} → ${toAddress.slice(0,8)}...${toAddress.slice(-6)}`;
                 setSssSigningPurpose(purpose);
 
-                setSssPendingTx(() => async (wallet: ethers.Wallet) => {
+                setSssPendingTx(() => async (wallet: ethers.Wallet, _mn: string) => {
                     const provider = new ethers.JsonRpcProvider(rpcUrl);
                     const connected = wallet.connect(provider);
+
+                    // Travel Rule calldata 준비
+                    const currentRefId = travelRuleRefId;
+                    const trData = currentRefId ? encodeReferenceIdCalldata(currentRefId) : undefined;
 
                     if (selectedAsset.isNative) {
                         const tx = await connected.sendTransaction({
                             to: toAddress,
                             value: ethers.parseEther(finalTokenAmount),
+                            ...(trData ? { data: trData } : {}),
                         });
                         await tx.wait();
+                        // TR 패키지 저장 + tx_hash 업데이트
+                        if (currentRefId && travelRulePayload) {
+                          try {
+                            const pkg = await encryptTravelRuleData(travelRulePayload, currentRefId);
+                            await saveTravelRulePackage(pkg, tx.hash, selectedAsset.network);
+                          } catch(e) { console.error('TR 저장 실패 (non-blocking):', e); }
+                        }
                         alert(`전송 완료! Tx: ${tx.hash.slice(0, 20)}...`);
                     } else if (selectedAsset.tokenAddress) {
                         const abi = ['function transfer(address to, uint256 amount) returns (bool)'];
                         const contract = new ethers.Contract(selectedAsset.tokenAddress, abi, connected);
+                        // ERC20: transfer + calldata는 별도 처리 필요 (현재 미지원)
                         const tx = await contract.transfer(toAddress, ethers.parseUnits(finalTokenAmount, 18));
                         await tx.wait();
+                        if (currentRefId && travelRulePayload) {
+                          try {
+                            const pkg = await encryptTravelRuleData(travelRulePayload, currentRefId);
+                            await saveTravelRulePackage(pkg, tx.hash, selectedAsset.network);
+                          } catch(e) { console.error('TR 저장 실패 (non-blocking):', e); }
+                        }
                         alert(`전송 완료! Tx: ${tx.hash.slice(0, 20)}...`);
                     } else {
                         throw new Error('전송 가능한 자산이 없습니다');
@@ -312,8 +443,20 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                 const targetChain = selectedAsset.network === 'Amoy' ? polygonAmoy : sepolia;
 
                 if (selectedAsset.isNative) {
-                    const transaction = prepareTransaction({ to: toAddress, chain: targetChain, client, value: toWei(finalTokenAmount) });
-                    await sendThirdwebTx(transaction);
+                    const currentRefId = travelRuleRefId;
+                    const trData = currentRefId ? encodeReferenceIdCalldata(currentRefId) as `0x${string}` : undefined;
+                    const transaction = prepareTransaction({
+                      to: toAddress, chain: targetChain, client,
+                      value: toWei(finalTokenAmount),
+                      ...(trData ? { data: trData } : {}),
+                    });
+                    const result = await sendThirdwebTx(transaction);
+                    if (currentRefId && travelRulePayload) {
+                      try {
+                        const pkg = await encryptTravelRuleData(travelRulePayload, currentRefId);
+                        await saveTravelRulePackage(pkg, typeof result === 'string' ? result : undefined, selectedAsset.network);
+                      } catch(e) { console.error('TR 저장 실패 (non-blocking):', e); }
+                    }
                 } else if (selectedAsset.tokenAddress) {
                     // ERC20
                     // ... (토큰 전송 로직 생략, 기존과 동일) ...
@@ -340,7 +483,7 @@ export function SendModal({ onClose }: { onClose: () => void }) {
     if (!sssPendingTx) return;
     try {
       setIsLoading(true);
-      await sssPendingTx(result.wallet);
+      await sssPendingTx(result.wallet, result.mnemonic);
     } catch (e: any) {
       alert('전송 실패: ' + (e.message || e));
     } finally {
@@ -352,9 +495,16 @@ export function SendModal({ onClose }: { onClose: () => void }) {
 
   const isProcessing = isWagmiPending || isWagmiConfirming || isThirdwebPending || isLoading;
 
+  const handleTravelRuleConfirm = async (refId: string, payload: TravelRulePayload) => {
+    setTravelRuleRefId(refId);
+    setTravelRulePayload(payload);
+    setShowTravelRule(false);
+    setTimeout(() => handleSend({ preventDefault: () => {} } as React.FormEvent), 100);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
-      <div className="bg-slate-900 w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl border border-slate-800 animate-fade-in-up relative overflow-hidden h-[90vh] sm:h-auto flex flex-col">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end justify-center z-[100]">
+      <div className="bg-slate-900 w-full max-w-lg rounded-t-3xl p-6 shadow-2xl border-t border-x border-slate-800 animate-slide-up relative overflow-hidden max-h-[90vh] flex flex-col">
         
         {/* 헤더 */}
         <div className="flex justify-between items-center mb-4 shrink-0">
@@ -580,6 +730,22 @@ export function SendModal({ onClose }: { onClose: () => void }) {
             setSssSigningOpen(false);
             setSssPendingTx(null);
           }}
+        />
+      )}
+
+      {/* Travel Rule 모달 */}
+      {showTravelRule && selectedWallet && selectedAsset && (
+        <TravelRuleModal
+          originatorUserId={smartAccount?.address || ''}
+          originatorAddress={selectedWallet.addresses.evm || ''}
+          beneficiaryAddress={toAddress}
+          assetSymbol={selectedAsset.symbol}
+          assetNetwork={selectedAsset.network}
+          amountToken={parseFloat(finalTokenAmount) || 0}
+          amountKrw={Math.floor((parseFloat(finalTokenAmount)||0)*(selectedAsset.price||0)*(prices?.exchangeRate||1450))}
+          amountUsd={(parseFloat(finalTokenAmount)||0)*(selectedAsset.price||0)}
+          onConfirm={(refId, payload) => handleTravelRuleConfirm(refId, payload)}
+          onCancel={() => setShowTravelRule(false)}
         />
       )}
       </div>

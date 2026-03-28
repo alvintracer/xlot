@@ -1,13 +1,40 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>traverse-wallet</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#020617" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="xLOT" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+
+    <!-- SEO / OG -->
+    <title>xLOT Wallet</title>
+    <meta name="description" content="Regulated Non-Custodial Super App — Your Keys, Our Compliance" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/icon-192.png" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Service Worker 등록 -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('[SW] 등록됨:', reg.scope))
+            .catch(err => console.warn('[SW] 등록 실패:', err));
+        });
+      }
+    </script>
   </body>
 </html>

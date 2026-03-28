@@ -7,6 +7,7 @@ import { wagmiConfig } from "./config";
 import { Dashboard } from "./DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PhoneClaimModal } from "./components/PhoneClaimModal";
+import { PWAInstallBanner } from "./components/PWAInstallBanner";
 
 const queryClient = new QueryClient();
 
@@ -68,7 +69,10 @@ function MainRouter() {
 
         {/* account 있어도 SSS 온보딩 중이면 LoginPage(+모달) 유지 */}
         {account && !sssOnboarding ? (
-          <Dashboard />
+          <>
+            <Dashboard />
+            <PWAInstallBanner />
+          </>
         ) : (
           <LoginPage />
         )}
