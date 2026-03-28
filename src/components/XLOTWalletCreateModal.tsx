@@ -26,6 +26,7 @@ import { splitSecret, stringToUint8 } from '../services/sssService';
 import {
   encryptShareA, encryptShareB, encryptShareC,
   saveVaultToSupabase, validatePassword,
+  deriveShareKeyFromPhone, deriveShareKeyFromEmail,
 } from '../services/shareVaultService';
 import { deriveMultiChainAddresses } from '../services/multiChainDerive';
 import { addSSSWallet } from '../services/walletService';
@@ -115,7 +116,9 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
         phone: `+82${phone.slice(1)}`, token: phoneOtp, type: 'sms',
       });
       if (error || !data.session) throw new Error('OTP 인증 실패');
-      setPhoneToken(data.session.access_token);
+      // 전화번호에서 결정론적 키 파생 — 같은 번호면 언제나 동일
+      const pKey = await deriveShareKeyFromPhone(phone);
+      setPhoneToken(pKey);
       setStep('email');
     } catch (e: any) { setError(e.message || 'OTP 인증 실패'); }
     finally { setIsLoading(false); }
@@ -145,7 +148,8 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
         email, token: emailOtp, type: 'email',
       });
       if (error || !data.session) throw new Error('이메일 OTP 인증 실패');
-      const emailSessionToken = data.session.access_token;
+      // 이메일에서 결정론적 키 파생 — 같은 이메일이면 언제나 동일
+      const emailDerivedKey = await deriveShareKeyFromEmail(email);
 
       // 2. 니모닉 생성 + 멀티체인 주소 파생
       const tempWallet  = ethers.Wallet.createRandom();
@@ -155,11 +159,11 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
       // 3. SSS 3 share 분할
       const [shareA, shareB, shareC] = splitSecret(stringToUint8(mnemonicPhrase), 3, 2);
 
-      // 4. 각 share 암호화
+      // 4. 각 share 암호화 (결정론적 키 사용)
       const [shareAEnc, shareBEnc, shareCEnc] = await Promise.all([
         encryptShareA(shareA, password),
         encryptShareB(shareB, phoneToken),
-        encryptShareC(shareC, emailSessionToken),
+        encryptShareC(shareC, emailDerivedKey),
       ]);
 
       // 5. Supabase 저장

@@ -839,11 +839,11 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                         {/* ✨ [수정 2] 드롭다운 자체의 z-index도 높게 설정 (z-50) */}
                         <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
                           {isActive && (
-                            <button onClick={() => setSyncModalConfig({ isOpen: true, mode: 'EXPORT_TO_CLOUD', wallet })} className="w-full px-4 py-3 text-left text-xs font-bold text-slate-300 hover:bg-slate-700 flex items-center gap-2">
+                            <button onClick={(e) => { e.stopPropagation(); setSyncModalConfig({ isOpen: true, mode: 'EXPORT_TO_CLOUD', wallet }); }} className="w-full px-4 py-3 text-left text-xs font-bold text-slate-300 hover:bg-slate-700 flex items-center gap-2">
                               <CloudUpload size={14} className="text-cyan-400"/> Export to Cloud
                             </button>
                           )}
-                          <button onClick={() => setSyncModalConfig({ isOpen: true, mode: 'IMPORT_FROM_CLOUD', wallet })} className="w-full px-4 py-3 text-left text-xs font-bold text-slate-300 hover:bg-slate-700 flex items-center gap-2 border-t border-slate-700">
+                          <button onClick={(e) => { e.stopPropagation(); setSyncModalConfig({ isOpen: true, mode: 'IMPORT_FROM_CLOUD', wallet }); }} className="w-full px-4 py-3 text-left text-xs font-bold text-slate-300 hover:bg-slate-700 flex items-center gap-2 border-t border-slate-700">
                             <CloudDownload size={14} className="text-green-400"/> Import from Cloud
                           </button>
                           <button onClick={(e) => handleDeleteClick(e, wallet.id)} className="w-full px-4 py-3 text-left text-xs font-bold text-red-400 hover:bg-red-500/10 flex items-center gap-2 border-t border-slate-700">

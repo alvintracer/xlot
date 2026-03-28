@@ -21,6 +21,7 @@ import { combineShares, uint8ToString } from '../services/sssService';
 import {
   decryptShareA, decryptShareB, decryptShareC,
   loadVaultFromSupabase, getUserVaults,
+  deriveShareKeyFromPhone, deriveShareKeyFromEmail,
 } from '../services/shareVaultService';
 import { addWeb3Wallet } from '../services/walletService';
 
@@ -110,18 +111,22 @@ export function XLOTWalletRecoverModal({ onClose, onSuccess }: Props) {
           phone: `+82${phone.slice(1)}`, token: phoneOtp, type: 'sms',
         });
         if (error || !data.session) throw new Error('OTP 인증 실패');
-        setPhoneToken(data.session.access_token);
+        // 전화번호에서 결정론적 키 파생 — 같은 번호면 언제나 동일
+        const pKey = await deriveShareKeyFromPhone(phone);
+        setPhoneToken(pKey);
         // B+C면 이메일도 필요
         if (path === 'B+C') { setStep('input'); }
-        else { await doRecover(data.session.access_token, emailToken); }
+        else { await doRecover(pKey, emailToken); }
       } else {
         const { data, error } = await supabase.auth.verifyOtp({
           email, token: emailOtp, type: 'email',
         });
         if (error || !data.session) throw new Error('이메일 OTP 인증 실패');
-        setEmailToken(data.session.access_token);
+        // 이메일에서 결정론적 키 파생 — 같은 이메일이면 언제나 동일
+        const eKey = await deriveShareKeyFromEmail(email);
+        setEmailToken(eKey);
         // A+C면 바로 복구, B+C면 phoneToken이 이미 있음
-        await doRecover(phoneToken, data.session.access_token);
+        await doRecover(phoneToken, eKey);
       }
     } catch (e: any) { setError(e.message); }
     finally { setIsLoading(false); }

@@ -10,6 +10,8 @@ import {
 } from "../services/walletService";
 import { validateAndDeriveAddress } from "../utils/keyManager"; 
 import { saveImportedKey } from "../utils/localWalletManager"; 
+import { saveImportedKeysToVaultSSS, deriveShareKeyFromPhone, deriveShareKeyFromEmail } from "../services/shareVaultService";
+import { SecureKeypad } from "./SecureKeypad";
 import { getSpecificProvider } from "../utils/walletProviderUtils";
 import { supabase } from "../lib/supabase";
 import { XLOTWalletCreateModal } from "./XLOTWalletCreateModal";
@@ -65,6 +67,17 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
   
   // Import Inputs
   const [privateKeyInput, setPrivateKeyInput] = useState(""); 
+  const [importStep, setImportStep]           = useState<'input'|'phone'|'email'|'pin'>('input');
+  const [importPhoneOtp, setImportPhoneOtp]   = useState('');
+  const [importPhoneOtpSent, setImportPhoneOtpSent] = useState(false);
+  const [importPhoneToken, setImportPhoneToken] = useState('');
+  const [importEmailInput, setImportEmailInput] = useState('');
+  const [importEmailToken, setImportEmailToken] = useState('');
+  const [importEmailOtpSent, setImportEmailOtpSent] = useState(false);
+  const [importPin, setImportPin]             = useState('');
+  const [showImportKeypad, setShowImportKeypad] = useState(false);
+  const [importDerivedAddr, setImportDerivedAddr] = useState('');
+  const [importFormattedKey, setImportFormattedKey] = useState('');
   const [detectedType, setDetectedType] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   
@@ -209,44 +222,86 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
     }
   };
 
-  // --- Import Handler ---
-  const handleImport = async () => {
+  // --- Import Handler (Step 1: 키 검증) ---
+  const handleImportValidate = async () => {
     if (!activeAccount) return alert("로그인이 필요합니다.");
     if (!privateKeyInput) return alert("프라이빗 키를 입력해주세요.");
-    
     setLoading(true);
     try {
-        const validationResult = await validateAndDeriveAddress(targetChain, privateKeyInput);
-        if (!validationResult || !validationResult.isValid || !validationResult.address) {
-            throw new Error("유효하지 않은 프라이빗 키입니다.");
-        }
-
-        const derivedAddress = validationResult.address;
-        const formattedKey = validationResult.formattedKey;
-
-        const passcode = prompt("키를 암호화하여 저장할 패스워드(PIN) 6자리를 입력하세요.");
-        if (!passcode || passcode.length < 6) throw new Error("패스워드는 6자리 이상이어야 합니다.");
-        
-        saveImportedKey(targetChain, derivedAddress, formattedKey, passcode);
-
-        const walletLabel = label || `${targetChain} Import Wallet`;
-        
-        if (targetChain === 'EVM') await addWeb3Wallet(activeAccount.address, derivedAddress, walletLabel, "MANUAL");
-        else if (targetChain === 'SOL') await addSolanaWallet(activeAccount.address, derivedAddress, walletLabel);
-        else if (targetChain === 'TRON') await addTronWallet(activeAccount.address, derivedAddress, walletLabel);
-        else if (targetChain === 'BTC') await addBitcoinWallet(activeAccount.address, derivedAddress, walletLabel);
-
-        alert("지갑 가져오기 성공!");
-        await onSuccess();
-        onClose();
-
-    } catch (e: any) {
-        console.error(e);
-        alert("가져오기 실패: " + e.message);
-    } finally {
-        setLoading(false);
-    }
+      const result = await validateAndDeriveAddress(targetChain, privateKeyInput);
+      if (!result?.isValid || !result.address) throw new Error("유효하지 않은 프라이빗 키입니다.");
+      setImportDerivedAddr(result.address);
+      setImportFormattedKey(result.formattedKey);
+      setImportStep('phone'); // SSS 인증 시작
+    } catch (e: any) { alert("키 검증 실패: " + e.message); }
+    finally { setLoading(false); }
   };
+
+  // Step 2: 휴대폰 OTP 전송
+  const handleImportPhoneOtp = async () => {
+    setLoading(true);
+    try {
+      const formatted = importPhoneOtp.startsWith('+') ? importPhoneOtp : '+82' + importPhoneOtp.replace(/^0/,'');
+      const { error } = await supabase.auth.signInWithOtp({ phone: formatted });
+      if (error) throw error;
+      setImportPhoneOtpSent(true);
+    } catch(e: any) { alert(e.message); }
+    finally { setLoading(false); }
+  };
+
+  // Step 2b: 휴대폰 OTP 검증 → 전화번호 기반 결정론적 키 파생
+  const handleImportPhoneVerify = async (otpCode: string) => {
+    try {
+      const formatted = importPhoneOtp.startsWith('+') ? importPhoneOtp : '+82' + importPhoneOtp.replace(/^0/,'');
+      const { data, error } = await supabase.auth.verifyOtp({ phone: formatted, token: otpCode, type: 'sms' });
+      if (error) throw error;
+      // 전화번호에서 결정론적 키 파생 — 같은 번호면 언제나 동일
+      const pKey = await deriveShareKeyFromPhone(importPhoneOtp);
+      setImportPhoneToken(pKey);
+      setImportStep('email');
+    } catch(e: any) { alert('휴대폰 OTP 실패: ' + (e as any).message); }
+  };
+
+  // Step 3: 이메일 OTP 전송
+  const handleImportEmailOtp = async () => {
+    setLoading(true);
+    try {
+      await supabase.auth.signInWithOtp({ email: importEmailInput });
+      setImportEmailOtpSent(true);
+    } catch(e: any) { alert(e.message); }
+    finally { setLoading(false); }
+  };
+
+  // Step 4: PIN 설정 후 최종 SSS 저장
+  const handleImportSave = async (pin: string) => {
+    if (!activeAccount) return;
+    setImportPin(pin); setShowImportKeypad(false);
+    setLoading(true);
+    try {
+      // 로컬 저장 (기존 방식, 즉시 서명용)
+      saveImportedKey(targetChain, importDerivedAddr, importFormattedKey, pin);
+
+      // SSS 3조각으로 Vault 저장
+      await saveImportedKeysToVaultSSS(
+        activeAccount.address, activeAccount.address,
+        { [targetChain]: importFormattedKey } as any,
+        pin, importPhoneToken, importEmailToken,
+      );
+
+      // DB에 지갑 등록
+      const walletLabel = label || `${targetChain} Import Wallet`;
+      if (targetChain === 'EVM') await addWeb3Wallet(activeAccount.address, importDerivedAddr, walletLabel, "MANUAL");
+      else if (targetChain === 'SOL') await addSolanaWallet(activeAccount.address, importDerivedAddr, walletLabel);
+      else if (targetChain === 'TRON') await addTronWallet(activeAccount.address, importDerivedAddr, walletLabel);
+      else if (targetChain === 'BTC') await addBitcoinWallet(activeAccount.address, importDerivedAddr, walletLabel);
+
+      alert("✅ 가져오기 성공! (SSS Triple-Shield로 보호됨)");
+      await onSuccess(); onClose();
+    } catch (e: any) { alert("저장 실패: " + e.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleImport = handleImportValidate; // 기존 호출부 호환용
 
   return (
     <>
@@ -274,7 +329,7 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
             {/* ── xLOT SSS 비수탁 지갑 카드 ── */}
             <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-2xl p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <img src="/icon-192.png" alt="xLOT" className="w-5 h-5 rounded-md object-cover" />
+                <ShieldCheck size={16} className="text-cyan-400" />
                 <p className="text-sm font-black text-white">xLOT 비수탁 지갑</p>
                 <span className="text-[9px] bg-cyan-500 text-white px-1.5 py-0.5 rounded font-bold">NEW</span>
               </div>
@@ -443,37 +498,144 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
         {/* === TAB 3: IMPORT === */}
         {/* ======================= */}
         {mainTab === "IMPORT" && (
-             <div className="space-y-4 animate-fade-in">
-                 <div className="bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/20 mb-4">
-                     <h3 className="text-emerald-400 font-bold text-sm flex items-center gap-2 mb-2"><KeyRound size={16}/> 프라이빗 키 가져오기</h3>
-                     <p className="text-xs text-slate-400 leading-relaxed">사용하던 지갑의 Private Key를 입력하여 xLOT에 등록합니다. 키는 기기 내부에 암호화되어 안전하게 저장됩니다.</p>
-                 </div>
-                 <div className="space-y-2">
-                    <p className="text-[10px] text-slate-500 font-bold ml-1">네트워크 선택</p>
-                    <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                      {CHAINS.map(c => (
-                        <button key={c.id} onClick={() => setTargetChain(c.id as any)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all whitespace-nowrap flex-1 ${targetChain === c.id ? `bg-${c.color}-500/20 border-${c.color}-500/50 text-${c.color}-400` : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'}`}>{c.label}</button>
-                      ))}
+          <div className="space-y-4 animate-fade-in">
+            {/* Step 헤더 */}
+            <div className="bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/20">
+              <h3 className="text-emerald-400 font-bold text-sm flex items-center gap-2 mb-1">
+                <KeyRound size={16}/> Triple-Shield 키 가져오기
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                프라이빗 키를 SSS 2-of-3으로 분할해 비밀번호·휴대폰·이메일로 보호합니다.
+              </p>
+            </div>
+
+            {/* Step 인디케이터 */}
+            <div className="flex items-center gap-1">
+              {['키 입력','휴대폰','이메일','PIN'].map((s, i) => {
+                const cur = {input:0,phone:1,email:2,pin:3}[importStep] ?? 0;
+                return (
+                  <div key={s} className="flex items-center gap-1 flex-1 last:flex-none">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${cur > i ? 'bg-emerald-500 text-white' : cur === i ? 'bg-cyan-500 text-white' : 'bg-slate-800 text-slate-500'}`}>
+                      {cur > i ? '✓' : i+1}
                     </div>
+                    {i < 3 && <div className={`flex-1 h-px ${cur > i ? 'bg-emerald-500':'bg-slate-800'}`}/>}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Step 1: 키 입력 */}
+            {importStep === 'input' && (
+              <div className="space-y-3">
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                  {CHAINS.map(c => (
+                    <button key={c.id} onClick={() => setTargetChain(c.id as any)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all whitespace-nowrap flex-1 ${targetChain === c.id ? `bg-${c.color}-500/20 border-${c.color}-500/50 text-${c.color}-400` : 'bg-slate-950 border-slate-800 text-slate-500'}`}>
+                      {c.label}
+                    </button>
+                  ))}
                 </div>
-                <div>
-                    <label className="text-xs text-slate-500 font-bold ml-1 mb-1 block">Private Key</label>
-                    <textarea value={privateKeyInput} onChange={(e) => setPrivateKeyInput(e.target.value)} placeholder="0x... 또는 Base58 키 입력" className="w-full bg-slate-950 text-white p-4 rounded-2xl outline-none border border-slate-800 focus:border-emerald-500 text-xs font-mono h-24 resize-none" />
-                </div>
-                <div>
-                    <label className="text-xs text-slate-500 font-bold ml-1 mb-1 block">지갑 별칭</label>
-                    <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={`${targetChain} 가져온 지갑`} className="w-full bg-slate-950 text-white p-4 rounded-2xl outline-none border border-slate-800 focus:border-emerald-500 text-sm" />
-                </div>
-                <button onClick={handleImport} disabled={loading} className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl font-bold text-white shadow-lg mt-2 flex items-center justify-center gap-2">
-                  {loading ? <Loader2 className="animate-spin"/> : <><CheckCircle2 size={18}/> 지갑 가져오기</>}
+                <textarea value={privateKeyInput} onChange={e => setPrivateKeyInput(e.target.value)}
+                  placeholder="0x... 또는 Base58 키 입력"
+                  className="w-full bg-slate-950 text-white p-4 rounded-2xl outline-none border border-slate-800 focus:border-emerald-500 text-xs font-mono h-24 resize-none"/>
+                <input value={label} onChange={e => setLabel(e.target.value)}
+                  placeholder="지갑 별칭"
+                  className="w-full bg-slate-950 text-white p-4 rounded-2xl outline-none border border-slate-800 focus:border-emerald-500 text-sm"/>
+                <button onClick={handleImportValidate} disabled={loading}
+                  className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2">
+                  {loading ? <Loader2 className="animate-spin" size={16}/> : <><CheckCircle2 size={16}/>키 검증 및 다음</>}
                 </button>
-             </div>
+              </div>
+            )}
+
+            {/* Step 2: 휴대폰 OTP (Share B) */}
+            {importStep === 'phone' && (
+              <div className="space-y-3">
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-[11px] text-slate-400">
+                  <p className="font-bold text-white mb-1">주소 확인됨</p>
+                  <p className="font-mono text-slate-500 truncate">{importDerivedAddr}</p>
+                </div>
+                <p className="text-xs text-slate-400">휴대폰 인증 (Share B — 복구 수단 1)</p>
+                <input value={importPhoneOtp} onChange={e => setImportPhoneOtp(e.target.value)}
+                  placeholder="010-1234-5678"
+                  className="w-full bg-slate-950 text-white p-3 rounded-xl border border-slate-800 text-sm outline-none focus:border-emerald-500/50"/>
+                {!importPhoneOtpSent ? (
+                  <button onClick={handleImportPhoneOtp} disabled={loading || !importPhoneOtp}
+                    className="w-full py-3 bg-slate-800 border border-slate-700 rounded-xl font-bold text-sm text-white disabled:opacity-40">
+                    {loading ? '전송 중...' : 'OTP 전송'}
+                  </button>
+                ) : importPhoneToken ? (
+                  <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+                    <CheckCircle2 size={12}/> 휴대폰 인증 완료 → 이메일 인증으로 이동
+                  </div>
+                ) : (
+                  <input placeholder="인증번호 6자리" maxLength={6}
+                    className="w-full bg-slate-950 text-white p-3 rounded-xl border border-slate-800 text-sm text-center font-mono outline-none focus:border-emerald-500/50"
+                    onChange={e => { if(e.target.value.length===6) handleImportPhoneVerify(e.target.value); }}/>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: 이메일 OTP (Share C) */}
+            {importStep === 'email' && (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-400">이메일 인증 (Share C — 복구 수단 2)</p>
+                <input value={importEmailInput} onChange={e => setImportEmailInput(e.target.value)}
+                  type="email" placeholder="your@email.com"
+                  className="w-full bg-slate-950 text-white p-3 rounded-xl border border-slate-800 text-sm outline-none focus:border-emerald-500/50"/>
+                <button onClick={handleImportEmailOtp} disabled={loading || importEmailOtpSent}
+                  className="w-full py-3 bg-slate-800 border border-slate-700 rounded-xl font-bold text-sm text-white disabled:opacity-40">
+                  {importEmailOtpSent ? '전송됨 (아래에 입력)' : loading ? '전송 중...' : '이메일 OTP 전송'}
+                </button>
+                {importEmailOtpSent && (
+                  <input type="text" placeholder="6자리 인증번호" maxLength={6}
+                    className="w-full bg-slate-950 text-white p-3 rounded-xl border border-slate-800 text-sm text-center font-mono outline-none focus:border-emerald-500/50"
+                    onChange={async e => {
+                      if (e.target.value.length === 6) {
+                        try {
+                          const { data, error } = await supabase.auth.verifyOtp({
+                            email: importEmailInput, token: e.target.value, type: 'email'
+                          });
+                          if (error) throw error;
+                          const eKey = await deriveShareKeyFromEmail(importEmailInput);
+                          setImportEmailToken(eKey);
+                          setImportStep('pin');
+                        } catch(err: any) { alert('이메일 OTP 실패: ' + err.message); }
+                      }
+                    }}/>
+                )}
+              </div>
+            )}
+
+            {/* Step 4: PIN 설정 */}
+            {importStep === 'pin' && (
+              <div className="space-y-3">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-[11px] text-emerald-300/80">
+                  ✅ 휴대폰 + 이메일 인증 완료<br/>
+                  이제 PIN을 설정하면 SSS 저장이 완료됩니다.
+                </div>
+                <button onClick={() => setShowImportKeypad(true)}
+                  className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl font-bold text-white flex items-center justify-center gap-2">
+                  <KeyRound size={16}/> PIN 설정 및 저장 완료
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Import SecureKeypad */}
+        {showImportKeypad && (
+          <SecureKeypad
+            title="Import 키 PIN 설정"
+            description="이 기기에서 키를 꺼낼 때 사용하는 PIN"
+            onClose={() => setShowImportKeypad(false)}
+            onComplete={handleImportSave}
+          />
         )}
 
       </div>
     </div>
 
-    {/* SSS 생성 모달 */}
     {showSSSCreate && (
       <XLOTWalletCreateModal
         onClose={() => setShowSSSCreate(false)}
@@ -481,7 +643,6 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
       />
     )}
 
-    {/* SSS 복구 모달 */}
     {showSSSRecover && (
       <XLOTWalletRecoverModal
         onClose={() => setShowSSSRecover(false)}
