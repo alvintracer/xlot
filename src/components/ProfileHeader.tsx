@@ -48,17 +48,11 @@ export function ProfileHeader() {
       {/* 프로필 버튼 */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-full p-1.5 sm:pl-3 sm:pr-4 sm:py-2 transition-all shadow-lg group"
+        className="flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-full p-1 transition-all shadow-lg group w-10 h-10 shrink-0"
       >
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-[0_0_10px_rgba(34,211,238,0.3)] shrink-0">
+        <div className="w-full h-full rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-[0_0_10px_rgba(34,211,238,0.3)] shrink-0 text-sm">
           {email ? email[0].toUpperCase() : <User size={16} />}
         </div>
-        <div className="hidden sm:flex flex-col items-start">
-          <span className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors max-w-[100px] truncate">
-            {email?.split("@")[0] || "User"}
-          </span>
-        </div>
-        {isOpen ? <ChevronUp size={14} className="hidden sm:block text-slate-400 shrink-0" /> : <ChevronDown size={14} className="hidden sm:block text-slate-400 shrink-0" />}
       </button>
 
       {/* 드롭다운 */}
