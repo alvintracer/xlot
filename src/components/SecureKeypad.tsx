@@ -63,7 +63,7 @@ export function SecureKeypad({ title, description, maxLength = 6, onClose, onCom
           <p className="text-xs text-slate-500 font-mono">{input.length} / {maxLength} Digits</p>
         </div>
 
-        <div className="bg-slate-950 p-6 pb-10 rounded-t-3xl border-t border-slate-800">
+        <div className="bg-slate-950 p-6 rounded-t-3xl border-t border-slate-800" style={{ paddingBottom: 'calc(max(2.5rem, env(safe-area-inset-bottom) + 1.5rem))' }}>
           <div className="flex justify-center items-center gap-2 mb-4 text-[10px] text-slate-500">
             <RefreshCw size={10} />
             <span>보안을 위해 키패드 위치가 무작위로 변경됩니다.</span>

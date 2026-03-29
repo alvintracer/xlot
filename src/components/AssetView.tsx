@@ -672,10 +672,11 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
             <div className="flex flex-col gap-1">
                <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400">xLOT</h1>
                <div className="relative" ref={dropdownRef}>
-                  <button onClick={() => setIsDeviceMenuOpen(!isDeviceMenuOpen)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/50 border border-slate-700 hover:bg-slate-800 transition-all cursor-pointer group">
-                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                     <span className="text-[10px] font-bold text-slate-300">{currentDeviceName || "기기 설정 필요"} (접속중)</span>
-                     <MoreVertical size={10} className="text-slate-500 group-hover:text-white" />
+                  <button onClick={() => setIsDeviceMenuOpen(!isDeviceMenuOpen)} className="flex items-center justify-center gap-1.5 w-8 h-8 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1 rounded-full bg-slate-800/50 border border-slate-700 hover:bg-slate-800 transition-all cursor-pointer group shrink-0">
+                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+                     <span className="text-[10px] font-bold text-slate-300 hidden sm:inline">{currentDeviceName || "기기 설정 필요"} (접속중)</span>
+                     <Monitor size={12} className="text-slate-400 sm:hidden" />
+                     <MoreVertical size={10} className="text-slate-500 group-hover:text-white hidden sm:block" />
                   </button>
                   {isDeviceMenuOpen && (
                      <div className="absolute top-full left-0 mt-2 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-xl z-20 p-2 animate-fade-in-up">
