@@ -668,16 +668,16 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
     <div className="p-6 pb-24 animate-fade-in max-w-lg mx-auto"> 
       <header className="mb-6 mt-2">
          {/* Header UI */}
-         <div className="flex justify-between items-start mb-6">
-            <div className="flex flex-col gap-1">
-               <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400">xLOT</h1>
-               <div className="relative" ref={dropdownRef}>
-                  <button onClick={() => setIsDeviceMenuOpen(!isDeviceMenuOpen)} className="flex items-center justify-center gap-1.5 w-8 h-8 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1 rounded-full bg-slate-800/50 border border-slate-700 hover:bg-slate-800 transition-all cursor-pointer group shrink-0">
-                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
-                     <span className="text-[10px] font-bold text-slate-300 hidden sm:inline">{currentDeviceName || "기기 설정 필요"} (접속중)</span>
-                     <Monitor size={12} className="text-slate-400 sm:hidden" />
-                     <MoreVertical size={10} className="text-slate-500 group-hover:text-white hidden sm:block" />
-                  </button>
+         <div className="flex justify-between items-start mb-6 relative">
+            <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 mt-0.5">xLOT</h1>
+            <div className="absolute left-1/2 -translate-x-1/2 top-0 z-[45]" ref={dropdownRef}>
+               <button onClick={() => setIsDeviceMenuOpen(!isDeviceMenuOpen)} className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 hover:bg-slate-700 transition-all cursor-pointer group shadow-sm">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+                  <span className="text-[10px] font-bold text-slate-300 whitespace-nowrap">
+                     {currentDeviceName ? (currentDeviceName.length > 7 ? currentDeviceName.slice(0, 7) + "..." : currentDeviceName) : "기기 설정 필요"}
+                  </span>
+                  <MoreVertical size={12} className="text-slate-500 group-hover:text-white shrink-0" />
+               </button>
                   {isDeviceMenuOpen && (
                      <div className="absolute top-full left-0 mt-2 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-xl z-20 p-2 animate-fade-in-up">
                         <p className="text-[10px] font-bold text-slate-500 mb-2 px-2">연결된 기기</p>
@@ -697,7 +697,6 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                         </div>
                      </div>
                   )}
-               </div>
             </div>
             <ProfileHeader />
          </div>
