@@ -309,8 +309,8 @@ export function ActivityPage() {
         <div className="space-y-2">
           {sssWallet && (
             <div className="flex items-center gap-2 px-3 py-2 bg-slate-950 rounded-xl">
-              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shrink-0">
-                <ShieldCheck size={10} className="text-white" />
+              <div className="w-5 h-5 rounded-full overflow-hidden p-[1px] bg-gradient-to-br from-emerald-500 to-teal-500 shadow-sm shrink-0">
+                <img src="/icon-192.png" alt="xLOT SSS" className="w-full h-full object-cover rounded-full bg-slate-900" />
               </div>
               <p className="text-[11px] font-bold text-emerald-400 flex-1 truncate">{sssWallet.label}</p>
               <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">SSS</span>
@@ -318,8 +318,8 @@ export function ActivityPage() {
           )}
           {mainWallet && mainWallet !== sssWallet && (
             <div className="flex items-center gap-2 px-3 py-2 bg-slate-950 rounded-xl">
-              <div className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center shrink-0">
-                <Wallet size={10} className="text-cyan-400" />
+              <div className="w-5 h-5 rounded-full overflow-hidden p-[1px] bg-gradient-to-br from-cyan-500 to-blue-500 shadow-sm shrink-0">
+                <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-cover rounded-full bg-slate-900" />
               </div>
               <p className="text-[11px] font-bold text-cyan-400 flex-1 truncate">{mainWallet.label}</p>
               <span className="text-[9px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.5 rounded-full">AA</span>
