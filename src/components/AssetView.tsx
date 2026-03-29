@@ -378,52 +378,6 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
     return false;
   };
 
-  // 상세 자산 리스트 렌더링
-  const renderAssetList = (wallet: WalletSlot) => {
-    if (!wallet.assets || wallet.assets.length === 0) return null;
-
-    return (
-        <div className="mt-3 flex flex-col gap-2">
-            {wallet.assets.map((asset, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-slate-950/30 p-2 rounded-lg border border-slate-800/50 hover:bg-slate-950/50 transition-colors">
-                    <div className="flex items-center gap-2">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold 
-                            ${asset.symbol === 'ETH' ? 'bg-slate-700 text-white' : 
-                              asset.symbol === 'POL' ? 'bg-purple-500/20 text-purple-400' :
-                              asset.symbol === 'SOL' ? 'bg-green-500/20 text-green-400' : 
-                              'bg-slate-800 text-slate-400'}`}>
-                            {asset.symbol[0]}
-                        </div>
-                        <div>
-                            <p className="text-xs font-bold text-slate-200">{asset.name}</p>
-                            <p className="text-[10px] text-slate-500">{asset.network}</p>
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-xs font-bold text-white">
-                            {asset.balance.toFixed(4)} <span className="text-[10px] text-slate-400">{asset.symbol}</span>
-                        </p>
-                        <div className="flex items-center justify-end gap-1">
-                           <p className="text-[10px] text-slate-500">
-                               {mode === 'USD' 
-                                  ? `$${asset.value.toLocaleString(undefined, {maximumFractionDigits: 2})}` 
-                                  : `₩${(asset.value * (prices?.exchangeRate || 1450)).toLocaleString(undefined, {maximumFractionDigits: 0})}`
-                               }
-                           </p>
-                           {asset.change !== 0 && (
-                               <span className={`text-[9px] flex items-center ${asset.change > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                   {asset.change > 0 ? <TrendingUp size={8}/> : <TrendingDown size={8}/>}
-                                   {Math.abs(asset.change).toFixed(1)}%
-                               </span>
-                           )}
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-  };
-
   // ✨ [수정] 가격 계산 오류 해결
   // walletService에서 이미 정확히 계산된 'total_value_krw'를 최우선으로 사용합니다.
   // 예전처럼 'balances.evm * ethPrice' 식의 부정확한 Fallback 계산을 제거했습니다.
@@ -854,9 +808,6 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                     )}
                   </div>
                 </div>
-
-                {/* 상세 토큰 리스트 */}
-                {renderAssetList(wallet)}
 
                 <div className="mt-4 pt-4 border-t border-slate-800/50 flex justify-between items-end">
                     <div className="flex flex-col">

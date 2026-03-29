@@ -281,27 +281,57 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
           </div>
         )}
 
-        {/* CEX 자산 리스트 */}
-        {isCex && wallet.assets.length > 0 && (
-          <div className="mb-8">
-            <h3 className="text-sm font-bold text-indigo-200 mb-3 px-1 flex items-center gap-2">
-              <Coins size={14} /> 보유 코인
+        {/* 보유 자산 리스트 (모든 지갑 공통, Toss UI 스타일) */}
+        {wallet.assets && wallet.assets.length > 0 && (
+          <div className="mb-8 relative z-10">
+            <h3 className="text-sm font-bold text-slate-300 mb-4 px-2 flex items-center gap-2">
+              <Coins size={16} className="text-cyan-400" /> 보유 자산
             </h3>
-            <div className="space-y-2">
-              {wallet.assets.map((asset, idx) => (
-                <div key={idx} className="flex justify-between items-center p-3 bg-slate-900/50 border border-slate-800/50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-slate-300 w-8">{asset.symbol}</span>
-                    <span className="text-[10px] text-slate-500">{asset.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs font-bold text-white">{asset.balance.toLocaleString()}</div>
-                    <div className="text-[10px] text-slate-500">
-                      ≈ {currencyMode === 'KRW' ? '₩' : '$'}{(currencyMode === 'KRW' ? asset.value : asset.value / exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+              {wallet.assets.map((asset, idx) => {
+                const isLast = idx === wallet.assets.length - 1;
+                return (
+                  <div key={idx} className={`flex justify-between items-center p-4 bg-slate-900/50 hover:bg-slate-800/80 transition-colors ${!isLast ? 'border-b border-slate-800/50' : ''}`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shadow-inner
+                          ${asset.symbol === 'ETH' ? 'bg-slate-700 text-white' : 
+                            asset.symbol === 'POL' ? 'bg-purple-500/20 text-purple-400' :
+                            asset.symbol === 'SOL' ? 'bg-green-500/20 text-green-400' : 
+                            asset.symbol === 'BTC' ? 'bg-orange-500/20 text-orange-500' : 
+                            asset.symbol === 'TRX' ? 'bg-red-500/20 text-red-500' : 
+                            asset.symbol === 'USDT' || asset.symbol === 'USDC' ? 'bg-emerald-500/20 text-emerald-500' :
+                            'bg-cyan-500/10 text-cyan-500 border border-cyan-500/20'}`}>
+                          {asset.symbol[0]}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-200">{asset.name || asset.symbol}</span>
+                        {asset.network && (
+                          <span className="text-[10px] text-slate-500 font-medium">네트워크: {asset.network}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right flex flex-col items-end">
+                      <div className="text-sm font-bold text-white flex gap-1 items-baseline">
+                        {asset.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                        <span className="text-[10px] text-slate-400 font-normal">{asset.symbol}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                        {isCex ? (
+                           // CEX는 asset.value가 기본 KRW입니다
+                           currencyMode === 'KRW' 
+                             ? `₩${asset.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}` 
+                             : `≈ $${(asset.value / exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                        ) : (
+                           // Web3는 asset.value가 기본 USD입니다
+                           currencyMode === 'KRW'
+                             ? `₩${(asset.value * exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                             : `≈ $${asset.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
