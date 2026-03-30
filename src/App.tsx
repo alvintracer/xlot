@@ -43,38 +43,56 @@ function MainRouter() {
   // SSS 온보딩 진행 중 플래그
   const [sssOnboarding, setSSSOnboarding] = useState(false);
 
+  // ── Bug 2 fix: 잠금 상태 (세션 복원 시 잠금, unlock 시 해제) ──
+  // localStorage 기반으로 재방문 여부 판단
+  // 새 사용자(첫 방문) → isLocked=false → ConnectButton 후 바로 Dashboard
+  // 재방문 사용자 → isLocked=true → LockedScreen → 해제 후 Dashboard
+  const [isLocked, setIsLocked] = useState<boolean>(() => {
+    try { return localStorage.getItem('xlot_visited') === '1'; } catch { return false; }
+  });
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const claim  = params.get("claim");
     if (claim) setClaimCommitment(claim);
   }, []);
 
-  // SSS 온보딩 완료 후 account가 생기면 플래그 해제
+  // account 변화 감지: 연결 시 방문 기록 저장 / 로그아웃 시 리셋
   useEffect(() => {
-    if (!account) setSSSOnboarding(false);
+    if (account) {
+      try { localStorage.setItem('xlot_visited', '1'); } catch {}
+    } else {
+      // 로그아웃 → 잠금 리셋 + SSS 플래그 정리
+      try { localStorage.removeItem('xlot_visited'); } catch {}
+      setIsLocked(false);
+      setSSSOnboarding(false);
+    }
   }, [account]);
 
   if (status === "connecting") {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4 text-white">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]" />
-        <p className="text-slate-400 font-bold animate-pulse">xLOT Wallet 불러오는 중...</p>
       </div>
     );
   }
+
+  // Dashboard 표시 조건:
+  //   account 있음 + SSS 온보딩 아님 + 잠금 해제됨
+  const showDashboard = !!account && !sssOnboarding && !isLocked;
 
   return (
     <SSSOnboardingContext.Provider value={{ sssOnboarding, setSSSOnboarding }}>
       <div className="relative min-h-screen bg-black text-white">
 
-        {/* account 있어도 SSS 온보딩 중이면 LoginPage(+모달) 유지 */}
-        {account && !sssOnboarding ? (
+        {showDashboard ? (
           <>
             <Dashboard />
             <PWAInstallBanner />
           </>
         ) : (
-          <LoginPage />
+          // onUnlock: LockedScreen 또는 SSS 완료 시 호출 → isLocked=false → Dashboard
+          <LoginPage onUnlock={() => setIsLocked(false)} />
         )}
 
         {claimCommitment && (

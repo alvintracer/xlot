@@ -305,9 +305,9 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
                   Privacy-Preserving
                 </span>
               </div>
-              <button onClick={() => onKycRequest?.()}
+              <button onClick={() => hasKYC ? onKycRequest?.() : setShowKYCReg(true)}
                 className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300">
-                인증 관리 →
+                {hasKYC ? '인증 관리 →' : '인증 하기'}
               </button>
             </div>
             <p className="text-[10px] text-slate-500 leading-relaxed">

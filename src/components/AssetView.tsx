@@ -271,6 +271,10 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
     let currentAddress = "";
 
     try {
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const currentUrlEnc = encodeURIComponent(window.location.href);
+        const targetHost = window.location.host + window.location.pathname;
+
         // A. Solana
         if (isSolana) {
             let provider;
@@ -279,7 +283,13 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
             else if (type === 'SOLFLARE') provider = win.solflare;
             else provider = win.solflare || win.okxwallet?.solana || win.solana;
 
-            if (!provider) throw new Error("Solana 지갑 객체를 찾을 수 없습니다.");
+            if (!provider) {
+                if (isMobile) {
+                    if (type === 'PHANTOM' || type === 'SOLANA') { window.location.href = `https://phantom.app/ul/browse/${currentUrlEnc}`; return; }
+                    if (type === 'OKX') { window.location.href = `okx://wallet/dapp/url?dappUrl=${currentUrlEnc}`; return; }
+                }
+                throw new Error("Solana 지갑 객체를 찾을 수 없습니다.");
+            }
 
             const resp = await provider.connect();
             currentAddress = resp.publicKey ? resp.publicKey.toString() : provider.publicKey.toString();
@@ -295,7 +305,12 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
         // B. Tron
         if (isTron) {
             let provider = type === 'OKX' ? win.okxwallet?.tronLink : win.tronLink;
-            if (!provider) throw new Error("Tron 지갑을 찾을 수 없습니다.");
+            if (!provider) {
+                if (isMobile) {
+                    if (type === 'OKX') { window.location.href = `okx://wallet/dapp/url?dappUrl=${currentUrlEnc}`; return; }
+                }
+                throw new Error("Tron 지갑을 찾을 수 없습니다.");
+            }
 
             const res = await provider.request({ method: 'tron_requestAccounts' });
             if (res.code === 200) currentAddress = res.address.base58;
@@ -317,7 +332,14 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                 provider = win.ethereum;
             }
 
-            if (!provider) throw new Error(`${targetType} 지갑을 찾을 수 없습니다.`);
+            if (!provider) {
+                if (isMobile) {
+                    if (targetType === 'METAMASK') { window.location.href = `https://metamask.app.link/dapp/${targetHost}`; return; }
+                    if (targetType === 'OKX') { window.location.href = `okx://wallet/dapp/url?dappUrl=${currentUrlEnc}`; return; }
+                    if (targetType === 'PHANTOM') { window.location.href = `https://phantom.app/ul/browse/${currentUrlEnc}`; return; }
+                }
+                throw new Error(`${targetType} 지갑을 찾을 수 없습니다.`);
+            }
 
             const accounts = await provider.request({ method: 'eth_requestAccounts' });
             currentAddress = accounts[0].toLowerCase();

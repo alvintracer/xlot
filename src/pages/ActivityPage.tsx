@@ -35,6 +35,7 @@ import {
 import type { TravelRulePayload } from '../services/travelRuleService';
 import { supabase } from '../lib/supabase';
 import { ethers } from 'ethers';
+import { KYCRegistrationModal } from '../components/KYCRegistrationModal';
 
 // ── 탭 타입 ──────────────────────────────────────────────────
 type MainTab = 'activity' | 'travel_rule' | 'tax';
@@ -92,6 +93,7 @@ export function ActivityPage() {
   // 세금
   const [taxYear, setTaxYear]         = useState(new Date().getFullYear() - 1);
   const [taxLoading, setTaxLoading]   = useState(false);
+  const [showKYCReg, setShowKYCReg]   = useState(false);
 
   const userId = smartAccount?.address || '';
 
@@ -281,8 +283,8 @@ export function ActivityPage() {
             ? 'bg-emerald-500/10 border-emerald-500/20'
             : hasKYCLocal
             ? 'bg-cyan-500/10 border-cyan-500/20'
-            : 'bg-slate-800/50 border-slate-700 border-dashed'
-        }`}>
+            : 'bg-slate-800/50 border-slate-700 border-dashed cursor-pointer hover:bg-slate-800 transition-colors'
+        }`} onClick={() => !credential && !hasKYCLocal && setShowKYCReg(true)}>
           {credential
             ? <ShieldCheck size={14} className="text-emerald-400 shrink-0" />
             : hasKYCLocal
@@ -766,6 +768,13 @@ export function ActivityPage() {
 
         {/* 탭 컨텐츠 */}
         {tabContent}
+
+        {showKYCReg && (
+          <KYCRegistrationModal
+            onClose={() => setShowKYCReg(false)}
+            onSuccess={() => window.location.reload()}
+          />
+        )}
       </div>
     </div>
   );

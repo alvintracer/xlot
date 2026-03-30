@@ -7074,7 +7074,6 @@ function MainRouter() {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4 text-white">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]"></div>
-        <p className="text-slate-400 font-bold animate-pulse">xLOT Wallet 불러오는 중...</p>
       </div>
     );
   }

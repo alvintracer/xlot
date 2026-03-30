@@ -25,7 +25,7 @@ const wallets = [
 
 type OnboardMode = 'main' | 'create_select' | 'smart' | 'seed';
 
-export function LoginPage() {
+export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
   const { setSSSOnboarding } = useSSSOnboarding();
   const account = useActiveAccount();
   const [mode, setMode]             = useState<OnboardMode>('main');
@@ -34,7 +34,9 @@ export function LoginPage() {
 
   // 이미 로그인된 상태 (세션 복원)
   const [isUnlocking, setIsUnlocking] = useState(false);
-  const isReturningUser = !!account;
+
+  // Bug 1 fix: SSS 모달이 열려있으면 account가 생겨도 LockedScreen으로 이탈하지 않음
+  const isReturningUser = !!account && !showCreate && !showRecover;
 
   // 이미 로그인된 경우 → 잠금 화면
   if (isReturningUser) {
@@ -44,8 +46,8 @@ export function LoginPage() {
         isUnlocking={isUnlocking}
         onUnlock={() => {
           setIsUnlocking(true);
-          // App.tsx에서 account 감지해서 Dashboard로 전환됨
-          // 여기선 짧은 애니메이션만
+          // Bug 2 fix: App.tsx의 isLocked=false → Dashboard로 전환
+          onUnlock();
           setTimeout(() => setIsUnlocking(false), 800);
         }}
       />
@@ -185,7 +187,6 @@ export function LoginPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-sm font-black text-white">스마트 이더리움 월렛</p>
-                    <span className="text-[9px] bg-cyan-500 text-white px-1.5 py-0.5 rounded font-bold">추천</span>
                   </div>
                   <p className="text-[11px] text-slate-400 leading-relaxed">
                     EVM 체인 전용 · 이메일·구글로 30초 만에 시작<br/>
@@ -352,14 +353,22 @@ export function LoginPage() {
       {showCreate && (
         <XLOTWalletCreateModal
           onClose={() => { setShowCreate(false); setSSSOnboarding(false); }}
-          onSuccess={() => { setShowCreate(false); setSSSOnboarding(false); }}
+          onSuccess={() => {
+            setShowCreate(false);
+            setSSSOnboarding(false);
+            onUnlock(); // SSS 생성 완료 → 잠금 해제 후 Dashboard로
+          }}
           loginMode
         />
       )}
       {showRecover && (
         <XLOTWalletRecoverModal
           onClose={() => { setShowRecover(false); setSSSOnboarding(false); }}
-          onSuccess={() => { setShowRecover(false); setSSSOnboarding(false); }}
+          onSuccess={() => {
+            setShowRecover(false);
+            setSSSOnboarding(false);
+            onUnlock(); // SSS 복구 완료 → 잠금 해제 후 Dashboard로
+          }}
         />
       )}
     </div>

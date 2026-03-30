@@ -29,6 +29,7 @@ import {
   X, ShieldCheck, AlertCircle, ArrowRightLeft,
   Loader2, Check, Info, ChevronRight, BarChart2
 } from 'lucide-react';
+import { KYCRegistrationModal } from '../components/KYCRegistrationModal';
 
 // ============================================================
 // Hook: 화면 너비 감지
@@ -75,6 +76,7 @@ export function TradePage({ onKycRequest }: TradePageProps) {
   const [hasKyc, setHasKyc]         = useState(false);
   const [isCheckingKyc, setIsCheckingKyc] = useState(true);
   const [buyStep, setBuyStep]       = useState<'idle' | 'fx' | 'confirm' | 'buying' | 'done'>('idle');
+  const [showKYCReg, setShowKYCReg] = useState(false);
 
   useEffect(() => {
     fetchRWAPrices().then(data => {
@@ -148,7 +150,13 @@ export function TradePage({ onKycRequest }: TradePageProps) {
             prices={prices}
             navData={navMap[mobileSelectedAsset.id] ?? null}
             onClose={() => setMobileSelectedAsset(null)}
-            onKycRequest={onKycRequest}
+            onKycRequest={() => setShowKYCReg(true)}
+          />
+        )}
+        {showKYCReg && (
+          <KYCRegistrationModal
+            onClose={() => setShowKYCReg(false)}
+            onSuccess={() => window.location.reload()}
           />
         )}
       </div>
@@ -167,7 +175,7 @@ export function TradePage({ onKycRequest }: TradePageProps) {
   const canBuy = usdcAmount >= activeAsset.minInvestmentUsd && !isCheckingKyc;
 
   const handleBuy = () => {
-    if (!hasKyc)              { onKycRequest?.(); return; }
+    if (!hasKyc)              { setShowKYCReg(true); return; }
     if (needsFxGate && !fxPurpose) { setBuyStep('fx'); return; }
     setBuyStep('confirm');
   };
@@ -333,7 +341,7 @@ export function TradePage({ onKycRequest }: TradePageProps) {
                   {isCheckingKyc ? 'KYC 확인 중...' : hasKyc ? 'KYC 인증 완료' : 'KYC 인증 필요'}
                 </span>
                 {!hasKyc && !isCheckingKyc && (
-                  <button onClick={() => onKycRequest?.()}
+                  <button onClick={() => setShowKYCReg(true)}
                     className="ml-auto text-[10px] text-cyan-400 hover:text-cyan-300 font-bold">
                     인증 →
                   </button>
@@ -372,6 +380,13 @@ export function TradePage({ onKycRequest }: TradePageProps) {
           />
         </div>
       </div>
+
+      {showKYCReg && (
+        <KYCRegistrationModal
+          onClose={() => setShowKYCReg(false)}
+          onSuccess={() => window.location.reload()}
+        />
+      )}
     </div>
   );
 }
