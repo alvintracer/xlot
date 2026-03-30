@@ -128,9 +128,15 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
     try {
       const win = window as any;
       let addr = '';
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const currentUrlEnc = encodeURIComponent(window.location.href);
+      const targetHost = window.location.host + window.location.pathname;
 
       if (walletId === 'OKX') {
-         if (!win.okxwallet) throw new Error("OKX Wallet이 설치되어 있지 않습니다.");
+         if (!win.okxwallet) {
+            if (isMobile) { window.location.href = `okx://wallet/dapp/url?dappUrl=${currentUrlEnc}`; return; }
+            throw new Error("OKX Wallet이 설치되어 있지 않습니다.");
+         }
          if (targetChain === 'EVM') {
              const res = await win.okxwallet.request({ method: 'eth_requestAccounts' });
              addr = res[0];
@@ -148,7 +154,10 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
       }
       else if (walletId === 'PHANTOM') {
           const provider = win.solana?.isPhantom ? win.solana : win.phantom?.solana;
-          if (!provider) throw new Error("Phantom 지갑을 찾을 수 없습니다.");
+          if (!provider) {
+             if (isMobile) { window.location.href = `https://phantom.app/ul/browse/${currentUrlEnc}`; return; }
+             throw new Error("Phantom 지갑을 찾을 수 없습니다.");
+          }
 
           if (targetChain === 'SOL') {
               const res = await provider.connect();
@@ -169,7 +178,10 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
       }
       else if (walletId === 'METAMASK' || walletId === 'RABBY') {
           const provider = getSpecificProvider(walletId);
-          if (!provider) throw new Error(`${walletId} 지갑을 찾을 수 없습니다.`);
+          if (!provider) {
+             if (isMobile && walletId === 'METAMASK') { window.location.href = `https://metamask.app.link/dapp/${targetHost}`; return; }
+             throw new Error(`${walletId} 지갑을 찾을 수 없습니다.`);
+          }
           const res = await provider.request({ method: 'eth_requestAccounts' });
           addr = res[0];
       }
@@ -180,19 +192,18 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
       }
       else if (walletId === 'TRONLINK') {
           // ── TronLink 주입 대기 ──────────────────────────────
-          // TronLink는 MetaMask와 달리 비동기로 window에 주입됨.
-          // 즉시 체크 시 undefined → 최대 3초 폴링으로 대기.
           const tronLinkReady = await new Promise<boolean>((resolve) => {
               if (win.tronLink || win.tronWeb) { resolve(true); return; }
               let attempts = 0;
               const timer = setInterval(() => {
                   attempts++;
                   if (win.tronLink || win.tronWeb) { clearInterval(timer); resolve(true); }
-                  else if (attempts >= 30) { clearInterval(timer); resolve(false); } // 3초 타임아웃
+                  else if (attempts >= 30) { clearInterval(timer); resolve(false); }
               }, 100);
           });
 
           if (!tronLinkReady) {
+              if (isMobile) { window.location.href = `okx://wallet/dapp/url?dappUrl=${currentUrlEnc}`; return; } // TronLink fallback
               throw new Error("TronLink 지갑을 찾을 수 없습니다.\nChrome 확장 프로그램이 설치되어 있는지 확인하고,\n페이지를 새로고침 후 다시 시도해주세요.");
           }
 
@@ -200,12 +211,9 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
           if (win.tronLink?.request) {
               const res = await win.tronLink.request({ method: 'tron_requestAccounts' });
               if (res?.code === 4001) throw new Error("TronLink 연결이 거절되었습니다.");
-              // 연결 후 tronWeb.defaultAddress 주입에 짧은 지연 필요 (TronLink 특성)
               await new Promise(r => setTimeout(r, 300));
           }
 
-          // ── 주소 추출 ────────────────────────────────────────
-          // tronWeb.defaultAddress.base58: 잠금 해제 시 유효, 잠금 시 빈 문자열
           const tronWeb = win.tronWeb;
           const base58 = tronWeb?.defaultAddress?.base58;
           if (!base58) {
