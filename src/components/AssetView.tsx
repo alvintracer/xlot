@@ -6,7 +6,7 @@ import { KYCRegistrationModal } from './KYCRegistrationModal';
 import { 
   Laptop, X, Plus, Trash2, Copy, RefreshCw, ShieldCheck, 
   CloudUpload, CloudDownload, MoreVertical, Monitor, Wallet, Power, 
-  TrendingUp, TrendingDown, Check, Loader2
+  TrendingUp, TrendingDown, Check, Loader2, Key
 } from "lucide-react";
 
 // Components
@@ -35,8 +35,9 @@ import type { PriceData } from "../services/priceService";
 
 import { WalletDetailView } from "./WalletDetailView";
 import { DepositDrawer } from "./DepositDrawer";
-import { CexWithdrawModal } from "./CexWithdrawModal"; // ✨ [수정 1] 주석 해제 및 활성화
+import { CexWithdrawModal } from "./CexWithdrawModal";
 import { Web3TransferModal } from "./Web3TransferModal";
+import { SSSSigningModal } from "./SSSSigningModal";
 
 interface AssetsViewProps {
   onSwapClick: () => void; 
@@ -67,6 +68,8 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
   const [selectedSlotIdForAdd, setSelectedSlotIdForAdd] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [mnemonicToBackup, setMnemonicToBackup] = useState<string | null>(null);
+  const [backupCleanup, setBackupCleanup] = useState<(() => void) | null>(null);
+  const [isSssExportingForId, setIsSssExportingForId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [hasSolPrivateKey, setHasSolPrivateKey] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -797,6 +800,11 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                               <CloudUpload size={14} className="text-cyan-400"/> Export to Cloud
                             </button>
                           )}
+                          {isActive && wallet.wallet_type === 'XLOT_SSS' && (
+                            <button onClick={(e) => { e.stopPropagation(); setIsSssExportingForId(wallet.id); setActiveMenuId(null); }} className="w-full px-4 py-3 text-left text-xs font-bold text-amber-400 hover:bg-amber-500/10 flex items-center gap-2 border-t border-slate-700">
+                              <Key size={14} className="text-amber-400"/> 비밀 구문 추출하기
+                            </button>
+                          )}
                           <button onClick={(e) => { e.stopPropagation(); setSyncModalConfig({ isOpen: true, mode: 'IMPORT_FROM_CLOUD', wallet }); }} className="w-full px-4 py-3 text-left text-xs font-bold text-slate-300 hover:bg-slate-700 flex items-center gap-2 border-t border-slate-700">
                             <CloudDownload size={14} className="text-green-400"/> Import from Cloud
                           </button>
@@ -856,7 +864,35 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
       )}
       {isAddModalOpen && <AddWalletModal onClose={() => setIsAddModalOpen(false)} onSuccess={refreshData} />}
       {selectedSlotIdForAdd && <AddAddressModal slotId={selectedSlotIdForAdd} onClose={() => setSelectedSlotIdForAdd(null)} onSuccess={refreshData} />}
-      {mnemonicToBackup && <SeedBackupModal mnemonic={mnemonicToBackup} onClose={() => setMnemonicToBackup(null)} />}
+      
+      {mnemonicToBackup && (
+        <div className="relative z-[200]">
+          <SeedBackupModal 
+            mnemonic={mnemonicToBackup} 
+            onClose={() => {
+              setMnemonicToBackup(null);
+              if (backupCleanup) backupCleanup();
+            }} 
+          />
+        </div>
+      )}
+      
+      {isSssExportingForId && wallets.find(w => w.id === isSssExportingForId) && (
+        <div className="relative z-[200]">
+          <SSSSigningModal
+            walletAddress={wallets.find(w => w.id === isSssExportingForId)!.addresses.evm!}
+            purpose="내 지갑 비밀 구문 내보내기"
+            onSigned={(result) => {
+               const { mnemonic, cleanup } = result;
+               setMnemonicToBackup(mnemonic);
+               setBackupCleanup(() => cleanup);
+               setIsSssExportingForId(null);
+            }}
+            onCancel={() => setIsSssExportingForId(null)}
+          />
+        </div>
+      )}
+
       {isImportModalOpen && <SeedImportModal onClose={() => setIsImportModalOpen(false)} onSuccess={() => { setHasSolPrivateKey(true); refreshData(); }} />}
       {isDeviceNameModalOpen && <DeviceNameModal onSuccess={handleDeviceNameSet} />}
       {syncModalConfig.isOpen && syncModalConfig.wallet && (

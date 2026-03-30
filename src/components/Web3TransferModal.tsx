@@ -10,9 +10,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { X, ArrowRight, ArrowRightLeft, Loader2, CheckCircle, ChevronDown } from "lucide-react";
 import { useActiveAccount, useSendTransaction } from "thirdweb/react";
-import { prepareTransaction, toWei, getContract } from "thirdweb";
+import { prepareTransaction, toWei, getContract, prepareContractCall, readContract } from "thirdweb";
 import { defineChain } from "thirdweb/chains";
-import { transfer } from "thirdweb/extensions/erc20";
 import { client } from "../client";
 import type { WalletSlot, WalletAsset } from "../services/walletService";
 
@@ -21,7 +20,9 @@ import type { WalletSlot, WalletAsset } from "../services/walletService";
 // ✨ [SSS 지원]
 import { ethers } from "ethers";
 import { SSSSigningModal } from "./SSSSigningModal";
-import { sendSOL, sendTRX, sendBTC } from "../services/multiChainSendService";
+import { sendSOL, sendTRX, sendBTC, sendTRC20 } from "../services/multiChainSendService";
+import { signPermit, relayPermitTransfer, requestTronJit, requestSolInit, checkSolAccountExists, PERMIT_SUPPORTED_TOKENS } from '../services/gaslessService';
+import { isTronWallet, getTronLinkWeb } from '../utils/walletProviderUtils';
 
 interface Props {
   sourceWallet: WalletSlot;
@@ -61,6 +62,9 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
   const [sssPendingTx, setSssPendingTx] = useState<((w: ethers.Wallet, mn: string) => Promise<void>) | null>(null);
   const [sssSigningPurpose, setSssSigningPurpose] = useState('');
 
+  // ✨ [TronLink] 연결된 TronLink 주소 추적
+  const [tronLinkAddress, setTronLinkAddress] = useState<string | null>(null);
+
   useEffect(() => {
     if (sourceWallet.assets && sourceWallet.assets.length > 0) {
       const firstWithBalance = sourceWallet.assets.find(a => a.balance > 0) || sourceWallet.assets[0];
@@ -68,12 +72,46 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
     }
   }, [sourceWallet]);
 
+  // TronLink 주소 감지 (해당 wallet_type일 때만)
+  useEffect(() => {
+    if (!isTronWallet(sourceWallet.wallet_type)) return;
+    const win = window as any;
+
+    const sync = () => {
+      const addr = getTronLinkWeb()?.defaultAddress?.base58 || null;
+      setTronLinkAddress(addr);
+    };
+
+    // TronLink는 비동기 주입 → 최대 3초 폴링 후 감지
+    let attempts = 0;
+    const poll = setInterval(() => {
+      attempts++;
+      if (win.tronLink || win.tronWeb) {
+        clearInterval(poll);
+        sync();
+        win.tronLink?.on?.('accountsChanged', sync);
+      } else if (attempts >= 30) {
+        clearInterval(poll);
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(poll);
+      win.tronLink?.removeListener?.('accountsChanged', sync);
+    };
+  }, [sourceWallet.wallet_type]);
+
   const isCorrectWallet = useMemo(() => {
     // SSS 계정은 내부 서명앱을 쓰므로 Active 연결 여부와 무관하게 허용
     if (sourceWallet.wallet_type === 'XLOT_SSS' || sourceWallet.wallet_type === 'XLOT') return true;
+    // TronLink: window.tronWeb 연결 주소 vs 저장된 TRX 주소 비교
+    if (isTronWallet(sourceWallet.wallet_type)) {
+      if (!tronLinkAddress || !sourceWallet.addresses.trx) return false;
+      return tronLinkAddress === sourceWallet.addresses.trx;
+    }
     if (!account?.address || !sourceWallet.addresses.evm) return false;
     return account.address.toLowerCase() === sourceWallet.addresses.evm.toLowerCase();
-  }, [account, sourceWallet]);
+  }, [account, sourceWallet, tronLinkAddress]);
 
 
 
@@ -90,51 +128,144 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
 
     // ✨ XLOT_SSS일 경우 SSS 서명 프로세스 바로 진행 (매끄러운 이체)
     if (sourceWallet.wallet_type === 'XLOT_SSS' || sourceWallet.wallet_type === 'XLOT') {
-       if (selectedAsset.symbol === 'SOL') {
+       if (selectedAsset.network === 'Solana') {
+          // SPL 토큰 지원 시 hasSol 분기 필요하나, 지금은 Native(SOL) 전송
           setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
              await sendSOL(mn, targetAddress, parseFloat(amount));
              setStep('RESULT');
           });
-       } else if (selectedAsset.symbol === 'TRX') {
+       } else if (selectedAsset.network === 'Tron') {
+          const isToken = !selectedAsset.isNative && !!selectedAsset.tokenAddress;
+          const trxBalance = sourceWallet.balances?.trx || 0;
+          const needsJit = isToken && trxBalance < 15;
           setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
-             await sendTRX(mn, targetAddress, parseFloat(amount));
+             let finalAmountToSend = parseFloat(amount);
+             if (needsJit) {
+                 await requestTronJit(sourceWallet.addresses.trx || '');
+                 finalAmountToSend = finalAmountToSend - 0.1;
+                 if (finalAmountToSend <= 0) throw new Error("가스 선지원 수수료(0.1 USDT)보다 남은 송금액이 적습니다.");
+                 await new Promise(r => setTimeout(r, 4000));
+             }
+
+             if (!isToken) {
+                 await sendTRX(mn, targetAddress, finalAmountToSend);
+             } else {
+                 const feeCollector = import.meta.env.VITE_TRON_FEE_COLLECTOR || "TUniCaBXQxTsUE5tK7SKxaPn6FwWwb1dup";
+                 await sendTRC20(mn, targetAddress, selectedAsset.tokenAddress!, finalAmountToSend, needsJit ? 0.1 : 0, needsJit ? feeCollector : "");
+             }
              setStep('RESULT');
           });
-       } else if (selectedAsset.symbol === 'BTC') {
+       } else if (selectedAsset.network === 'Bitcoin') {
           setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
              await sendBTC(mn, targetAddress, parseFloat(amount));
              setStep('RESULT');
           });
        } else {
          // EVM
-         const rpcUrl = selectedAsset.network === 'Amoy' 
-             ? (import.meta.env.VITE_POLYGON_AMOY_RPC || 'https://rpc-amoy.polygon.technology')
-             : (import.meta.env.VITE_SEPOLIA_RPC || 'https://rpc.sepolia.org');
-             
-         setSssPendingTx(() => async (wallet: ethers.Wallet, _mn: string) => {
-             const provider = new ethers.JsonRpcProvider(rpcUrl);
-             const connected = wallet.connect(provider);
+         // Permit 체크 
+         let tAddr = selectedAsset.tokenAddress || '';
+         const permitDetail = (!selectedAsset.isNative && tAddr)
+             ? PERMIT_SUPPORTED_TOKENS[tAddr.toLowerCase()]
+             : undefined;
 
-             if (selectedAsset.isNative) {
-                 const tx = await connected.sendTransaction({
-                     to: targetAddress,
-                     value: ethers.parseEther(amount)
+         if (permitDetail) {
+             const relayerAddress = import.meta.env.VITE_EVM_RELAYER_ADDRESS || "0xRelayerAddressPlaceholder";
+             let permitRpcUrl = 'https://eth.llamarpc.com';
+             if (selectedAsset.network === 'Polygon') permitRpcUrl = import.meta.env.VITE_POLYGON_RPC || 'https://polygon-rpc.com';
+             else if (selectedAsset.network === 'Amoy') permitRpcUrl = import.meta.env.VITE_POLYGON_AMOY_RPC || 'https://rpc-amoy.polygon.technology';
+             else if (selectedAsset.network === 'Sepolia') permitRpcUrl = import.meta.env.VITE_SEPOLIA_RPC || 'https://rpc.sepolia.org';
+             setSssPendingTx(() => async (wallet: ethers.Wallet, _mn: string) => {
+                 const deadline = Math.floor(Date.now() / 1000) + 3600;
+                 const amountWei = ethers.parseUnits(amount, 6);
+                 // nonce 조회를 위해 provider 연결 필요
+                 const provider = new ethers.JsonRpcProvider(permitRpcUrl);
+                 const connected = wallet.connect(provider);
+                 const { v, r, s } = await signPermit(
+                     connected, permitDetail, relayerAddress, amountWei.toString(), deadline
+                 );
+                 await relayPermitTransfer({
+                     network: selectedAsset.network,
+                     tokenAddress: permitDetail.tokenAddress,
+                     owner: wallet.address,
+                     toAddress: targetAddress,
+                     amount: amount, 
+                     deadline, v, r, s
                  });
-                 await tx.wait();
-             } else if (selectedAsset.tokenAddress) {
-                 const abi = ['function transfer(address to, uint256 amount) returns (bool)'];
-                 const contract = new ethers.Contract(selectedAsset.tokenAddress, abi, connected);
-                 const tx = await contract.transfer(targetAddress, ethers.parseUnits(amount, 18));
-                 await tx.wait();
-             } else {
-                 throw new Error('전송 가능한 자산이 없습니다');
+                 setStep('RESULT');
+             });
+         } else {
+             // 일반 EVM
+             let rpcUrl = 'https://eth.llamarpc.com';
+             if (selectedAsset.network === 'Amoy') {
+                 rpcUrl = import.meta.env.VITE_POLYGON_AMOY_RPC || 'https://rpc-amoy.polygon.technology';
+             } else if (selectedAsset.network === 'Polygon') {
+                 rpcUrl = import.meta.env.VITE_POLYGON_RPC || 'https://polygon-rpc.com';
+             } else if (selectedAsset.network === 'Sepolia') {
+                 rpcUrl = import.meta.env.VITE_SEPOLIA_RPC || 'https://rpc.sepolia.org';
+             } else if (selectedAsset.network === 'Ethereum') {
+                 rpcUrl = import.meta.env.VITE_ETH_RPC || 'https://eth.llamarpc.com';
              }
-             setStep('RESULT');
-         });
+                 
+             setSssPendingTx(() => async (wallet: ethers.Wallet, _mn: string) => {
+                 const provider = new ethers.JsonRpcProvider(rpcUrl);
+                 const connected = wallet.connect(provider);
+
+                 if (selectedAsset.isNative) {
+                     const tx = await connected.sendTransaction({
+                         to: targetAddress,
+                         value: ethers.parseEther(amount)
+                     });
+                     await tx.wait();
+                 } else if (selectedAsset.tokenAddress) {
+                     const abi = [
+                        'function transfer(address to, uint256 amount) returns (bool)',
+                        'function decimals() view returns (uint8)'
+                     ];
+                     const contract = new ethers.Contract(selectedAsset.tokenAddress, abi, connected);
+                     let decimals = 18;
+                     try { decimals = Number(await contract.decimals()); } catch (e) { /* default to 18 */ }
+                     const tx = await contract.transfer(targetAddress, ethers.parseUnits(amount, decimals));
+                     await tx.wait();
+                 } else {
+                     throw new Error('전송 가능한 자산이 없습니다');
+                 }
+                 setStep('RESULT');
+             });
+         }
        }
        setSssSigningPurpose(`${amount} ${selectedAsset.symbol} 채우기`);
        setSssSigningOpen(true);
        return;
+    }
+
+    // ── TronLink 전송 경로 ────────────────────────────────────
+    if (isTronWallet(sourceWallet.wallet_type)) {
+      try {
+        const tronWeb = getTronLinkWeb();
+        if (!tronWeb?.defaultAddress?.base58) {
+          setError("TronLink가 연결되어 있지 않습니다. 지갑 잠금을 해제하고 다시 시도해주세요.");
+          return;
+        }
+        if (selectedAsset.isNative) {
+          // TRX 전송 (1 TRX = 1,000,000 SUN)
+          const sunAmount = Math.floor(parseFloat(amount) * 1_000_000);
+          const tx = await tronWeb.trx.sendTransaction(targetAddress, sunAmount);
+          if (!tx.result) throw new Error("TRX 전송 실패: " + (tx.message || '트랜잭션 거절'));
+        } else if (selectedAsset.tokenAddress) {
+          // TRC20 전송
+          const contract = await tronWeb.contract().at(selectedAsset.tokenAddress);
+          let decimals = 6;
+          try { decimals = Number(await contract.decimals().call()); } catch (_) { /* 기본 6 유지 */ }
+          const rawAmount = BigInt(Math.floor(parseFloat(amount) * Math.pow(10, decimals)));
+          await contract.transfer(targetAddress, rawAmount).send({ feeLimit: 100_000_000 });
+        } else {
+          throw new Error("전송 가능한 자산이 없습니다.");
+        }
+        setStep('RESULT');
+      } catch (e: any) {
+        setError(e.message);
+      }
+      return;
     }
 
     // 일반 Web3 계정
@@ -143,8 +274,74 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
       if (!chainId) throw new Error(`지원하지 않는 네트워크입니다: ${selectedAsset.network}`);
 
       const chain = defineChain(chainId);
-      let transaction;
 
+      // ── Permit(EIP-2612) 가스리스 경로 ──────────────────────
+      const tAddr = selectedAsset.tokenAddress || '';
+      const permitDetail = (!selectedAsset.isNative && tAddr)
+        ? PERMIT_SUPPORTED_TOKENS[tAddr.toLowerCase()]
+        : undefined;
+
+      if (permitDetail && account) {
+        const relayerAddress = import.meta.env.VITE_EVM_RELAYER_ADDRESS || '';
+        if (!relayerAddress) throw new Error('Relayer 주소가 설정되지 않았습니다.');
+
+        const deadline = Math.floor(Date.now() / 1000) + 3600;
+        const amountWei = ethers.parseUnits(amount, 6);
+
+        // nonce 읽기 (read-only provider)
+        const rpcUrl = chainId === 1
+          ? (import.meta.env.VITE_ETH_RPC || 'https://eth.llamarpc.com')
+          : (import.meta.env.VITE_POLYGON_RPC || 'https://polygon-rpc.com');
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        const tokenContract = new ethers.Contract(
+          permitDetail.tokenAddress,
+          ['function nonces(address owner) view returns (uint256)'],
+          provider,
+        );
+        const nonce = await tokenContract.nonces(account.address);
+
+        // EIP-712 permit 서명 (thirdweb account — 가스 불필요)
+        const signature = await account.signTypedData({
+          domain: {
+            name: permitDetail.name,
+            version: permitDetail.version,
+            chainId: BigInt(permitDetail.chainId),
+            verifyingContract: permitDetail.tokenAddress as `0x${string}`,
+          },
+          types: {
+            Permit: [
+              { name: 'owner',    type: 'address' },
+              { name: 'spender',  type: 'address' },
+              { name: 'value',    type: 'uint256' },
+              { name: 'nonce',    type: 'uint256' },
+              { name: 'deadline', type: 'uint256' },
+            ],
+          },
+          primaryType: 'Permit',
+          message: {
+            owner:    account.address as `0x${string}`,
+            spender:  relayerAddress  as `0x${string}`,
+            value:    amountWei,
+            nonce:    BigInt(nonce.toString()),
+            deadline: BigInt(deadline),
+          },
+        });
+
+        const { v, r, s } = ethers.Signature.from(signature);
+        await relayPermitTransfer({
+          network: selectedAsset.network,
+          tokenAddress: permitDetail.tokenAddress,
+          owner: account.address,
+          toAddress: targetAddress,
+          amount,
+          deadline, v, r, s,
+        });
+        setStep('RESULT');
+        return;
+      }
+
+      // ── 일반 transfer (가스 필요) ────────────────────────────
+      let transaction;
       if (selectedAsset.isNative) {
         transaction = prepareTransaction({
           to: targetAddress,
@@ -154,20 +351,26 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
         });
       } else if (selectedAsset.tokenAddress) {
         const contract = getContract({ client, chain, address: selectedAsset.tokenAddress });
-        transaction = transfer({ contract, to: targetAddress, amount: amount });
+        const decimals = await readContract({ contract, method: 'function decimals() view returns (uint8)' });
+        const rawAmount = ethers.parseUnits(amount, Number(decimals));
+        transaction = prepareContractCall({
+          contract,
+          method: 'function transfer(address to, uint256 amount) returns (bool)',
+          params: [targetAddress as `0x${string}`, rawAmount],
+        });
       } else {
-        throw new Error("올바르지 않은 자산 정보입니다.");
+        throw new Error('올바르지 않은 자산 정보입니다.');
       }
 
       sendTransaction(transaction, {
         onSuccess: () => { setStep('RESULT'); },
         onError: (err) => {
-          if (err.message.includes("rejected")) {
-            setError("사용자가 서명을 거부했습니다.");
+          if (err.message.includes('rejected')) {
+            setError('사용자가 서명을 거부했습니다.');
           } else {
-            setError("전송 실패: " + err.message);
+            setError('전송 실패: ' + err.message);
           }
-        }
+        },
       });
 
     } catch (e: any) {
@@ -280,7 +483,11 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
                     : 'bg-slate-800 cursor-not-allowed text-slate-500'}`}
               >
                 {isPending ? <Loader2 className="animate-spin" /> : <ArrowRightLeft />}
-                {!isCorrectWallet ? '지갑 연결 필요' : '채우기'}
+                {!isCorrectWallet
+                  ? isTronWallet(sourceWallet.wallet_type)
+                    ? 'TronLink 연결 필요'
+                    : '지갑 연결 필요'
+                  : '채우기'}
               </button>
             </div>
           )}

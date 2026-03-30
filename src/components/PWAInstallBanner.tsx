@@ -87,8 +87,8 @@ export function PWAInstallBanner() {
         <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl p-4 shadow-[0_0_30px_rgba(34,211,238,0.15)] flex items-center gap-3">
 
           {/* 앱 아이콘 */}
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(34,211,238,0.4)]">
-            <span className="text-white font-black text-lg">x</span>
+          <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(34,211,238,0.4)] overflow-hidden p-0.5">
+            <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-cover rounded-lg" />
           </div>
 
           <div className="flex-1 min-w-0">
@@ -124,13 +124,13 @@ export function PWAInstallBanner() {
         <div className="fixed bottom-[72px] left-3 right-3 z-[200] animate-fade-in-up">
           <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl p-4 shadow-[0_0_30px_rgba(34,211,238,0.15)]">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shrink-0">
-                <span className="text-white font-black">x</span>
+              <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 overflow-hidden p-0.5">
+                <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-cover rounded-lg" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-black text-white">홈화면에 추가하기</p>
                 <p className="text-[11px] text-slate-400">
-                  KYC 정보가 더 안정적으로 보관돼요
+                  언제든지 편안하게 지갑을 관리하세요.
                 </p>
               </div>
               <button onClick={handleDismiss} className="p-1.5 text-slate-600 hover:text-slate-400 shrink-0">

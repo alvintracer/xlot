@@ -15,11 +15,19 @@ import {
   prepareTransaction, 
   toWei, 
   getContract, 
-  prepareContractCall 
+  prepareContractCall,
+  defineChain
 } from "thirdweb";
-import { polygonAmoy, sepolia } from "thirdweb/chains"; 
 import { transfer } from "thirdweb/extensions/erc20"; 
 import { client } from "../client"; 
+
+const ethMainnet = defineChain(1);
+const polygonChain = defineChain(137);
+const baseChain = defineChain(8453);
+const arbitrumChain = defineChain(42161);
+const sepoliaChain = defineChain(11155111);
+const amoyChain = defineChain(80002);
+
 
 // UI & Services
 // ✨ [추가] ShieldAlert, SearchCheck 등 아이콘 추가
@@ -45,7 +53,8 @@ import {
   updateTravelRuleTxHash,
 } from '../services/travelRuleService';
 import { TravelRuleModal } from './TravelRuleModal';
-import { sendSOL, sendTRX, sendBTC } from '../services/multiChainSendService';
+import { signPermit, relayPermitTransfer, requestTronJit, requestSolInit, checkSolAccountExists, PERMIT_SUPPORTED_TOKENS } from '../services/gaslessService';
+import { sendSOL, sendTRX, sendBTC, sendTRC20 } from '../services/multiChainSendService';
 import { ethers } from "ethers";
 import { SSSSigningModal } from "./SSSSigningModal";
 import type { SSSSigningResult } from "./SSSSigningModal";
@@ -107,7 +116,7 @@ export function SendModal({ onClose }: { onClose: () => void }) {
 
   const escrowContract = getContract({
     client,
-    chain: polygonAmoy,
+    chain: amoyChain,
     address: ESCROW_CONTRACT_ADDRESS,
   });
 
@@ -323,43 +332,82 @@ export function SendModal({ onClose }: { onClose: () => void }) {
         try {
             // ── XLOT_SSS: SSS 서명 모달 경유 ──────────────────────────
             if (selectedWallet.wallet_type === 'XLOT_SSS') {
-              // ── SOL 전송 ────────────────────────────────────────
-              if (selectedAsset?.symbol === 'SOL') {
+              // ── SOL 전송 (with optional Rent JIT check) ─────────────────────────
+              if (selectedAsset.network === 'Solana') {
                 const currentRefId = travelRuleRefId;
                 const currentPayload = travelRulePayload;
+                // SPL 토큰 지원 시 hasSol 분기 필요하나, 현재는 Native만 지원됨
                 setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
-                  const result = await sendSOL(mn, toAddress, parseFloat(finalTokenAmount), currentRefId || undefined);
-                  if (currentRefId && currentPayload) {
-                    try {
-                      const { encryptTravelRuleData, saveTravelRulePackage } = await import('../services/travelRuleService');
-                      const pkg = await encryptTravelRuleData(currentPayload, currentRefId);
-                      await saveTravelRulePackage(pkg, result.txHash, 'SOL');
-                    } catch(e) { console.error('TR 저장 실패:', e); }
-                  }
-                  alert(`SOL 전송 완료! Tx: ${result.txHash.slice(0,20)}...`);
-                  onClose();
+                  try {
+                    const result = await sendSOL(mn, toAddress, parseFloat(finalTokenAmount), currentRefId || undefined);
+                    if (currentRefId && currentPayload) {
+                      try {
+                        const { encryptTravelRuleData, saveTravelRulePackage } = await import('../services/travelRuleService');
+                        const pkg = await encryptTravelRuleData(currentPayload, currentRefId);
+                        await saveTravelRulePackage(pkg, result.txHash, 'SOL');
+                      } catch(e) { console.error('TR 저장 실패:', e); }
+                    }
+                    alert(`SOL 전송 완료! Tx: ${result.txHash.slice(0,20)}...`);
+                  } catch (e: any) { alert("SOL 전송 실패: " + e.message); }
                 });
                 setSssSigningPurpose(`${finalTokenAmount} SOL → ${toAddress.slice(0,8)}...`);
                 setSssSigningOpen(true);
                 return;
               }
-              // ── TRX 전송 ────────────────────────────────────────
-              if (selectedAsset?.symbol === 'TRX') {
+              // ── TRX 및 TRC20 전송 (with JIT 가스 대납) ──────────────────────────
+              if (selectedAsset.network === 'Tron') {
+                const isToken = !selectedAsset.isNative && !!selectedAsset.tokenAddress;
+                const trxBalance = selectedWallet.balances?.trx || 0;
+                
+                // JIT 가스비 필요 여부 (트론에서는 TRC20 전송 시 통상 15~30 TRX 소모)
+                const needsJit = isToken && trxBalance < 15;
                 const currentRefId = travelRuleRefId;
                 const currentPayload = travelRulePayload;
+                
                 setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
-                  const result = await sendTRX(mn, toAddress, parseFloat(finalTokenAmount), currentRefId || undefined);
-                  if (currentRefId && currentPayload) {
-                    try {
-                      const { encryptTravelRuleData, saveTravelRulePackage } = await import('../services/travelRuleService');
-                      const pkg = await encryptTravelRuleData(currentPayload, currentRefId);
-                      await saveTravelRulePackage(pkg, result.txHash, 'TRX');
-                    } catch(e) { console.error('TR 저장 실패:', e); }
-                  }
-                  alert(`TRX 전송 완료! Tx: ${result.txHash.slice(0,20)}...`);
-                  onClose();
+                  try {
+                    let finalAmountToSend = parseFloat(finalTokenAmount);
+
+                    if (needsJit) {
+                        alert("TRX 가스비가 부족하여 백그라운드 JIT 선지원을 요청합니다. (약 3초 소요)");
+                        await requestTronJit(selectedWallet.addresses.trx || '');
+                        // 수수료 0.1 USDT 차감
+                        finalAmountToSend = finalAmountToSend - 0.1;
+                        if (finalAmountToSend <= 0) throw new Error("전송 금액이 JIT 수수료(0.1 USDT)보다 작습니다.");
+                        // 선지원금 도착 대기
+                        await new Promise(r => setTimeout(r, 4000));
+                    }
+
+                    let txHash = '';
+                    if (!isToken) {
+                        const res = await sendTRX(mn, toAddress, finalAmountToSend, currentRefId || undefined);
+                        txHash = res.txHash;
+                    } else {
+                        const feeCollector = import.meta.env.VITE_TRON_FEE_COLLECTOR || "TUniCaBXQxTsUE5tK7SKxaPn6FwWwb1dup";
+                        const res = await sendTRC20(
+                            mn, 
+                            toAddress, 
+                            selectedAsset.tokenAddress!, 
+                            finalAmountToSend,
+                            needsJit ? 0.1 : 0,  // 차감될 가스비 대납 수수료
+                            needsJit ? feeCollector : "", 
+                            currentRefId || undefined
+                        );
+                        txHash = res.txHash;
+                    }
+
+                    if (currentRefId && currentPayload) {
+                      try {
+                        const { encryptTravelRuleData, saveTravelRulePackage } = await import('../services/travelRuleService');
+                        const pkg = await encryptTravelRuleData(currentPayload, currentRefId);
+                        await saveTravelRulePackage(pkg, txHash, 'TRX');
+                      } catch(e) { console.error('TR 저장 실패:', e); }
+                    }
+                    alert(`Tron 전송 완료! Tx: ${txHash.slice(0,20)}...`);
+                  } catch(e: any) { alert("Tron 전송 실패: " + e.message); }
                 });
-                setSssSigningPurpose(`${finalTokenAmount} TRX → ${toAddress.slice(0,8)}...`);
+                
+                setSssSigningPurpose(`${needsJit ? '[JIT 요청] ' : ''}${finalTokenAmount} ${selectedAsset.symbol} → ${toAddress.slice(0,8)}...`);
                 setSssSigningOpen(true);
                 return;
               }
@@ -368,16 +416,17 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                 const currentRefId = travelRuleRefId;
                 const currentPayload = travelRulePayload;
                 setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
-                  const result = await sendBTC(mn, toAddress, parseFloat(finalTokenAmount), currentRefId || undefined);
-                  if (currentRefId && currentPayload) {
-                    try {
-                      const { encryptTravelRuleData, saveTravelRulePackage } = await import('../services/travelRuleService');
-                      const pkg = await encryptTravelRuleData(currentPayload, currentRefId);
-                      await saveTravelRulePackage(pkg, result.txHash, 'BTC');
-                    } catch(e) { console.error('TR 저장 실패:', e); }
-                  }
-                  alert(`BTC 전송 완료! Tx: ${result.txHash.slice(0,20)}...`);
-                  onClose();
+                  try {
+                    const result = await sendBTC(mn, toAddress, parseFloat(finalTokenAmount), currentRefId || undefined);
+                    if (currentRefId && currentPayload) {
+                      try {
+                        const { encryptTravelRuleData, saveTravelRulePackage } = await import('../services/travelRuleService');
+                        const pkg = await encryptTravelRuleData(currentPayload, currentRefId);
+                        await saveTravelRulePackage(pkg, result.txHash, 'BTC');
+                      } catch(e) { console.error('TR 저장 실패:', e); }
+                    }
+                    alert(`BTC 전송 완료! Tx: ${result.txHash.slice(0,20)}...`);
+                  } catch (e: any) { alert("BTC 전송 실패: " + e.message); }
                 });
                 setSssSigningPurpose(`${finalTokenAmount} BTC → ${toAddress.slice(0,8)}...`);
                 setSssSigningOpen(true);
@@ -386,9 +435,59 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                 const evmAddress = selectedWallet.addresses.evm;
                 if (!evmAddress) return alert('EVM 주소를 찾을 수 없습니다');
 
-                const rpcUrl = selectedAsset.network === 'Amoy'
-                    ? (import.meta.env.VITE_POLYGON_AMOY_RPC || 'https://rpc-amoy.polygon.technology')
-                    : (import.meta.env.VITE_SEPOLIA_RPC || 'https://rpc.sepolia.org');
+                // EVM Permit 체크 로직 (수수료 대납 오프체인 서명 플로우)
+                let tAddr = selectedAsset.tokenAddress || '';
+                const permitDetail = (!selectedAsset.isNative && tAddr)
+                    ? PERMIT_SUPPORTED_TOKENS[tAddr.toLowerCase()]
+                    : undefined;
+
+                if (permitDetail) {
+                    const relayerAddress = import.meta.env.VITE_EVM_RELAYER_ADDRESS || "0xRelayerAddressPlaceholder";
+                    let permitRpcUrl = 'https://eth.llamarpc.com';
+                    if (selectedAsset.network === 'Polygon') permitRpcUrl = import.meta.env.VITE_POLYGON_RPC || 'https://polygon-rpc.com';
+                    else if (selectedAsset.network === 'Amoy') permitRpcUrl = import.meta.env.VITE_POLYGON_AMOY_RPC || 'https://rpc-amoy.polygon.technology';
+                    else if (selectedAsset.network === 'Sepolia') permitRpcUrl = import.meta.env.VITE_SEPOLIA_RPC || 'https://rpc.sepolia.org';
+                    setSssSigningPurpose(`[가스비 무료] ${finalTokenAmount} ${selectedAsset.symbol} → ${toAddress.slice(0,8)}...`);
+                    setSssPendingTx(() => async (wallet: ethers.Wallet, _mn: string) => {
+                        try {
+                            const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hr 여유
+                            const amountWei = ethers.parseUnits(finalTokenAmount, 6); // USDC/PYUSD는 주로 6자리
+
+                            // 1. Off-chain 대납 서명 생성 (nonce 조회를 위해 provider 연결 필요)
+                            const provider = new ethers.JsonRpcProvider(permitRpcUrl);
+                            const connected = wallet.connect(provider);
+                            const { v, r, s } = await signPermit(
+                                connected, permitDetail, relayerAddress, amountWei.toString(), deadline
+                            );
+                            
+                            // 2. Edge Function (Relayer) 에 전송 위임
+                            const txResult = await relayPermitTransfer({
+                                network: selectedAsset.network,
+                                tokenAddress: permitDetail.tokenAddress,
+                                owner: wallet.address,
+                                toAddress,
+                                amount: finalTokenAmount, // raw string
+                                deadline, v, r, s
+                            });
+
+                            alert(`서명 대납 전송 완료! Tx: ${(txResult as any).txHash?.slice(0, 20)}...`);
+                        } catch (e: any) { alert("대납 전송(Permit) 실패: " + e.message); }
+                    });
+                    setSssSigningOpen(true);
+                    return;
+                }
+
+                // 일반 EVM Transaction (Native 및 Permit 미지원 ERC20)
+                let rpcUrl = 'https://eth.llamarpc.com';
+                if (selectedAsset.network === 'Amoy') {
+                    rpcUrl = import.meta.env.VITE_POLYGON_AMOY_RPC || 'https://rpc-amoy.polygon.technology';
+                } else if (selectedAsset.network === 'Polygon') {
+                    rpcUrl = import.meta.env.VITE_POLYGON_RPC || 'https://polygon-rpc.com';
+                } else if (selectedAsset.network === 'Sepolia') {
+                    rpcUrl = import.meta.env.VITE_SEPOLIA_RPC || 'https://rpc.sepolia.org';
+                } else if (selectedAsset.network === 'Ethereum') {
+                    rpcUrl = import.meta.env.VITE_ETH_RPC || 'https://eth.llamarpc.com';
+                }
 
                 const purpose = `${finalTokenAmount} ${selectedAsset.symbol} → ${toAddress.slice(0,8)}...${toAddress.slice(-6)}`;
                 setSssSigningPurpose(purpose);
@@ -417,10 +516,14 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                         }
                         alert(`전송 완료! Tx: ${tx.hash.slice(0, 20)}...`);
                     } else if (selectedAsset.tokenAddress) {
-                        const abi = ['function transfer(address to, uint256 amount) returns (bool)'];
+                        const abi = [
+                            'function transfer(address to, uint256 amount) returns (bool)',
+                            'function decimals() view returns (uint8)'
+                        ];
                         const contract = new ethers.Contract(selectedAsset.tokenAddress, abi, connected);
-                        // ERC20: transfer + calldata는 별도 처리 필요 (현재 미지원)
-                        const tx = await contract.transfer(toAddress, ethers.parseUnits(finalTokenAmount, 18));
+                        let decimals = 18;
+                        try { decimals = Number(await contract.decimals()); } catch (e) { console.error("Decimals fetch error:", e); }
+                        const tx = await contract.transfer(toAddress, ethers.parseUnits(finalTokenAmount, decimals));
                         await tx.wait();
                         if (currentRefId && travelRulePayload) {
                           try {
@@ -432,7 +535,6 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                     } else {
                         throw new Error('전송 가능한 자산이 없습니다');
                     }
-                    onClose();
                 });
                 setSssSigningOpen(true);
                 return; // 실제 tx는 handleSSSSigningComplete에서 실행
@@ -440,7 +542,10 @@ export function SendModal({ onClose }: { onClose: () => void }) {
 
             // ── 기존 XLOT (Thirdweb AA) ───────────────────────────────
             if (selectedWallet.wallet_type === 'XLOT') {
-                const targetChain = selectedAsset.network === 'Amoy' ? polygonAmoy : sepolia;
+                let targetChain = sepoliaChain;
+                if (selectedAsset.network === 'Amoy') targetChain = amoyChain;
+                else if (selectedAsset.network === 'Ethereum') targetChain = ethMainnet;
+                else if (selectedAsset.network === 'Polygon') targetChain = polygonChain;
 
                 if (selectedAsset.isNative) {
                     const currentRefId = travelRuleRefId;
@@ -574,6 +679,30 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                 <input type="number" placeholder="0.00" value={amountInput} onChange={(e) => setAmountInput(e.target.value)} className="w-full bg-slate-950 text-white p-4 pr-16 rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-slate-800 text-lg font-bold" />
               </div>
               <p className="text-right text-xs text-slate-500 mt-2 font-mono h-4">{convertedValue}</p>
+
+              {/* 자산별 특수 안내 (USDT EVM 제한, Tron JIT 등) */}
+              {selectedAsset?.symbol === 'USDT' && ['Ethereum', 'Polygon', 'Sepolia', 'Amoy', 'Base', 'Arbitrum'].includes(selectedAsset.network) && (
+                  <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded-xl flex items-start gap-2 mt-2 animate-fade-in-up">
+                      <AlertTriangle size={16} className="text-orange-400 mt-0.5 shrink-0" />
+                      <div>
+                          <p className="text-orange-400 text-xs font-bold mb-0.5">EVM 계열 USDT 전송 제한 ⚠️</p>
+                          <p className="text-slate-300 text-[11px] leading-tight">
+                              수수료 대납 기능(Permit) 미지원 토큰입니다. 전송 시 네트워크 <b>네이티브 코인(ETH, POL 등)이 가스비로 반드시 필요</b>합니다. 가스비 통제가 쉬운 <b>트론(Tron) 사용을 권장</b>합니다.
+                          </p>
+                      </div>
+                  </div>
+              )}
+              {selectedAsset?.network === 'Tron' && !selectedAsset.isNative && (
+                  <div className="bg-cyan-500/10 border border-cyan-500/20 p-3 rounded-xl flex items-start gap-2 mt-2 animate-fade-in-up">
+                      <ShieldCheck size={16} className="text-cyan-400 mt-0.5 shrink-0" />
+                      <div>
+                          <p className="text-cyan-400 text-xs font-bold mb-0.5">TRX 수수료 자동 지원 (JIT)</p>
+                          <p className="text-slate-300 text-[11px] leading-tight">
+                              네트워크 가스비(TRX)가 부족하더라도 <b>백그라운드에서 가스비를 즉시 선지원</b>하여 원활한 전송을 돕습니다.
+                          </p>
+                      </div>
+                  </div>
+              )}
             </div>
 
 {/* 받는 곳 입력 & ✨ [토스 스타일 검증 UI - 업데이트됨] */}

@@ -32,6 +32,11 @@ const TARGET_CHAINS = [
     { chain: arbitrum, symbol: 'ETH', name: 'Arbitrum' },
 ];
 
+const TARGET_TOKENS = [
+    { chain: ethMainnet, symbol: 'USDC', name: 'USD Coin', tokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' },
+    { chain: ethMainnet, symbol: 'USDT', name: 'Tether USD', tokenAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7' },
+];
+
 // ==========================================
 // 2. Interfaces
 // ==========================================
@@ -83,7 +88,7 @@ export interface WalletSlot {
 // Solana Connection
 let _solConnection: Connection | null = null;
 const getSolanaConnection = () => {
-    if (!_solConnection) _solConnection = new Connection("https://rpc.ankr.com/solana");
+    if (!_solConnection) _solConnection = new Connection("https://solana-rpc.publicnode.com");
     return _solConnection;
 };
 
@@ -213,9 +218,9 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
 
             // ✨ B. EVM (Thirdweb SDK 사용 - 빠르고 안정적)
             if (wallet.addresses.evm) {
+                // 네이티브 코인 (ETH, POL 등)
                 const evmPromises = TARGET_CHAINS.map(async (item) => {
                     try {
-                        // Thirdweb의 getWalletBalance는 내부적으로 RPC를 사용하여 매우 빠름
                         const result = await getWalletBalance({
                             client,
                             chain: item.chain,
@@ -228,14 +233,13 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                             let price = 0;
                             let change = 0;
                             const symbolKey = item.symbol.toLowerCase();
-                            const tokenPrices = prices?.tokens as any; // any 캐스팅으로 에러 방지
+                            const tokenPrices = prices?.tokens as any; 
 
                             if (tokenPrices && tokenPrices[symbolKey]) {
                                 price = tokenPrices[symbolKey].usd;
                                 change = tokenPrices[symbolKey].change;
                             }
 
-                            // 메인 화면 표시용 (이더리움 메인넷 잔액 우선)
                             if (item.chain.id === 1) wallet.balances.evm = balance;
 
                             return {
@@ -250,13 +254,59 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                             } as WalletAsset;
                         }
                     } catch (e) {
-                        // 특정 체인 조회 실패해도 무시하고 진행
                     }
                     return null;
                 });
 
-                const evmAssets = (await Promise.all(evmPromises)).filter(Boolean) as WalletAsset[];
-                wallet.assets.push(...evmAssets);
+                // ERC-20 토큰 (USDC, USDT 등)
+                const tokenPromises = TARGET_TOKENS.map(async (item) => {
+                    try {
+                        const result = await getWalletBalance({
+                            client,
+                            chain: item.chain,
+                            address: wallet.addresses.evm!,
+                            tokenAddress: item.tokenAddress
+                        });
+
+                        const balance = Number(result.displayValue);
+
+                        if (balance > 0) {
+                            let price = 0;
+                            let change = 0;
+                            const symbolKey = item.symbol.toLowerCase();
+                            const tokenPrices = prices?.tokens as any; 
+
+                            if (tokenPrices && tokenPrices[symbolKey]) {
+                                price = tokenPrices[symbolKey].usd;
+                                change = tokenPrices[symbolKey].change;
+                            }
+
+                            return {
+                                symbol: item.symbol,
+                                name: item.name,
+                                balance: balance,
+                                price: price,
+                                value: balance * price,
+                                change: change,
+                                network: item.chain.id === 1 ? 'Ethereum' : 'EVM',
+                                isNative: false,
+                                tokenAddress: item.tokenAddress
+                            } as WalletAsset;
+                        }
+                    } catch (e) {
+                    }
+                    return null;
+                });
+
+                const [evmAssets, tokenAssets] = await Promise.all([
+                    Promise.all(evmPromises),
+                    Promise.all(tokenPromises)
+                ]);
+                
+                wallet.assets.push(
+                    ...(evmAssets.filter(Boolean) as WalletAsset[]),
+                    ...(tokenAssets.filter(Boolean) as WalletAsset[])
+                );
             }
 
             // C. Solana
@@ -455,11 +505,11 @@ export async function addBitcoinWallet(userId: string, address: string, label: s
     });
 }
 
-export async function addTronWallet(userId: string, address: string, label: string) {
+export async function addTronWallet(userId: string, address: string, label: string, walletType: string = 'TRON') {
     const tron = getTronWeb();
     if (!tron.isAddress(address)) throw new Error("올바른 트론 주소 아님");
     await supabase.from('user_wallets').insert({
-        user_id: userId, address_trx: address, label, wallet_type: 'TRON', device_uuid: getDeviceId()
+        user_id: userId, address_trx: address, label, wallet_type: walletType, device_uuid: getDeviceId()
     });
 }
 

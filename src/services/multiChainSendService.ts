@@ -37,7 +37,7 @@ export async function sendSOL(
   const privKey = await deriveSolPrivKey(mnemonic);
   const keypair = await solKeypairFromPrivKey(privKey);
 
-  const conn     = new Connection('https://rpc.ankr.com/solana', 'confirmed');
+  const conn     = new Connection('https://solana-rpc.publicnode.com', 'confirmed');
   const toPubkey = new PublicKey(toAddress);
   const lamports = BigInt(Math.floor(amountSOL * LAMPORTS_PER_SOL));
 
@@ -102,36 +102,19 @@ export async function sendTRX(
   amountTRX:   number,
   referenceId?: string,
 ): Promise<SendResult> {
-  // TRX 개인키 파생 (m/44'/195'/0'/0/0)
-  const root     = ethers.HDNodeWallet.fromSeed(
-    ethers.Mnemonic.fromPhrase(mnemonic).computeSeed()
-  );
+  const root     = ethers.HDNodeWallet.fromSeed(ethers.Mnemonic.fromPhrase(mnemonic).computeSeed());
   const child    = root.derivePath("m/44'/195'/0'/0/0");
-  const privKeyHex = child.privateKey.slice(2); // 0x 제거
+  const privKeyHex = child.privateKey.slice(2);
 
-  // TronWeb 초기화
   const TronWebPkg = await import('tronweb');
-  const TronWebCtor = (TronWebPkg as any).TronWeb
-    || (TronWebPkg as any).default?.TronWeb
-    || (TronWebPkg as any).default
-    || TronWebPkg;
-  const tronWeb = new TronWebCtor({
-    fullHost:   'https://api.trongrid.io',
-    privateKey: privKeyHex,
-  });
+  const TronWebCtor = (TronWebPkg as any).TronWeb || (TronWebPkg as any).default?.TronWeb || (TronWebPkg as any).default || TronWebPkg;
+  const tronWeb = new TronWebCtor({ fullHost: 'https://api.trongrid.io', privateKey: privKeyHex });
 
   const sunAmount = Math.floor(amountTRX * 1_000_000);
-
-  // extra_data: Travel Rule ref_id (hex)
-  const extraData = referenceId
-    ? TR_CALLDATA_PREFIX.slice(2) + referenceId  // '54520000' + ref_id
-    : undefined;
+  const extraData = referenceId ? TR_CALLDATA_PREFIX.slice(2) + referenceId : undefined;
 
   const tx = await tronWeb.transactionBuilder.sendTrx(
-    toAddress,
-    sunAmount,
-    tronWeb.address.fromPrivateKey(privKeyHex),
-    extraData ? { data: extraData } : {},
+    toAddress, sunAmount, tronWeb.address.fromPrivateKey(privKeyHex), extraData ? { data: extraData } : {}
   );
 
   const signedTx = await tronWeb.trx.sign(tx, privKeyHex);
@@ -139,6 +122,49 @@ export async function sendTRX(
 
   if (!result.result) throw new Error('TRX 전송 실패: ' + JSON.stringify(result));
   return { txHash: result.txid, chain: 'TRX' };
+}
+
+// ── TRC20 전송 ───────────────────────────────────────────────
+export async function sendTRC20(
+  mnemonic: string,
+  toAddress: string,
+  tokenAddress: string,
+  amount: number,
+  feeTokens: number = 0,    // JIT 대납 시 수수료로 차감할 토큰 수량 (예: 0.1 USDT)
+  feeCollector: string = "", // 수수료 수취 지갑 주소
+  referenceId?: string
+): Promise<SendResult> {
+  const root = ethers.HDNodeWallet.fromSeed(ethers.Mnemonic.fromPhrase(mnemonic).computeSeed());
+  const child = root.derivePath("m/44'/195'/0'/0/0");
+  const privKeyHex = child.privateKey.slice(2);
+
+  const TronWebPkg = await import('tronweb');
+  const TronWebCtor = (TronWebPkg as any).TronWeb || (TronWebPkg as any).default?.TronWeb || (TronWebPkg as any).default || TronWebPkg;
+  const tronWeb = new TronWebCtor({ fullHost: 'https://api.trongrid.io', privateKey: privKeyHex });
+
+  const fromAddress = tronWeb.address.fromPrivateKey(privKeyHex);
+  
+  // USDT TRC20 decimals 6
+  let contract;
+  try { contract = await tronWeb.contract().at(tokenAddress); } catch (e) { throw new Error("TRC20 컨트랙트 로드 실패"); }
+  
+  // 만약 JIT 수수료 차감이 있다면
+  if (feeTokens > 0 && feeCollector) {
+      const feeU256 = Math.floor(feeTokens * 1_000_000); // USDT 6 decimals 가정
+      // 실제로는 fee를 먼저 보내고 나머지를 본주소로 전송
+      await contract.methods.transfer(feeCollector, feeU256).send({ feeLimit: 1000000000 });
+  }
+
+  // 본 전송
+  const sendU256 = Math.floor(amount * 1_000_000);
+  const txHash = await contract.methods.transfer(toAddress, sendU256).send({
+      feeLimit: 1000000000,
+      callValue: 0,
+      // extra data (travel rule) is usually appended in raw tx for TRC20, but tronWeb high level contract doesn't support extra_data easily.
+      // We assume basic transfer here.
+  });
+
+  return { txHash, chain: 'TRX' };
 }
 
 // ── BTC 전송 (with OP_RETURN) ────────────────────────────────

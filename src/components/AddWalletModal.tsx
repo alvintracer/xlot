@@ -24,11 +24,12 @@ interface Props {
 
 // === CONSTANTS ===
 const WEB3_WALLETS = [
-  { id: 'METAMASK', name: 'MetaMask', icon: '🦊', bg: 'bg-orange-500/10', color: 'text-orange-500', supported: ['EVM'] },
-  { id: 'RABBY', name: 'Rabby', icon: '🐰', bg: 'bg-blue-500/10', color: 'text-blue-500', supported: ['EVM'] },
-  { id: 'PHANTOM', name: 'Phantom', icon: '👻', bg: 'bg-purple-500/10', color: 'text-purple-500', supported: ['SOL', 'EVM', 'BTC'] },
-  { id: 'SOLFLARE', name: 'Solflare', icon: '☀️', bg: 'bg-orange-400/10', color: 'text-orange-400', supported: ['SOL'] },
-  { id: 'OKX', name: 'OKX Wallet', icon: 'X', bg: 'bg-slate-800', color: 'text-white', supported: ['EVM', 'SOL', 'TRON', 'BTC'] },
+  { id: 'METAMASK',  name: 'MetaMask',   icon: '🦊',  bg: 'bg-orange-500/10', color: 'text-orange-500', supported: ['EVM'] },
+  { id: 'RABBY',     name: 'Rabby',       icon: '🐰',  bg: 'bg-blue-500/10',   color: 'text-blue-500',   supported: ['EVM'] },
+  { id: 'PHANTOM',   name: 'Phantom',     icon: '👻',  bg: 'bg-purple-500/10', color: 'text-purple-500', supported: ['SOL', 'EVM', 'BTC'] },
+  { id: 'SOLFLARE',  name: 'Solflare',    icon: '☀️',  bg: 'bg-orange-400/10', color: 'text-orange-400', supported: ['SOL'] },
+  { id: 'OKX',       name: 'OKX Wallet',  icon: 'X',   bg: 'bg-slate-800',     color: 'text-white',      supported: ['EVM', 'SOL', 'TRON', 'BTC'] },
+  { id: 'TRONLINK',  name: 'TronLink',    icon: '⚡',  bg: 'bg-red-500/10',    color: 'text-red-400',    supported: ['TRON'] },
 ];
 
 const CEX_LIST = [
@@ -177,6 +178,45 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
           await win.solflare.connect();
           addr = win.solflare.publicKey.toString();
       }
+      else if (walletId === 'TRONLINK') {
+          // ── TronLink 주입 대기 ──────────────────────────────
+          // TronLink는 MetaMask와 달리 비동기로 window에 주입됨.
+          // 즉시 체크 시 undefined → 최대 3초 폴링으로 대기.
+          const tronLinkReady = await new Promise<boolean>((resolve) => {
+              if (win.tronLink || win.tronWeb) { resolve(true); return; }
+              let attempts = 0;
+              const timer = setInterval(() => {
+                  attempts++;
+                  if (win.tronLink || win.tronWeb) { clearInterval(timer); resolve(true); }
+                  else if (attempts >= 30) { clearInterval(timer); resolve(false); } // 3초 타임아웃
+              }, 100);
+          });
+
+          if (!tronLinkReady) {
+              throw new Error("TronLink 지갑을 찾을 수 없습니다.\nChrome 확장 프로그램이 설치되어 있는지 확인하고,\n페이지를 새로고침 후 다시 시도해주세요.");
+          }
+
+          // ── 연결 요청 ───────────────────────────────────────
+          if (win.tronLink?.request) {
+              const res = await win.tronLink.request({ method: 'tron_requestAccounts' });
+              if (res?.code === 4001) throw new Error("TronLink 연결이 거절되었습니다.");
+              // 연결 후 tronWeb.defaultAddress 주입에 짧은 지연 필요 (TronLink 특성)
+              await new Promise(r => setTimeout(r, 300));
+          }
+
+          // ── 주소 추출 ────────────────────────────────────────
+          // tronWeb.defaultAddress.base58: 잠금 해제 시 유효, 잠금 시 빈 문자열
+          const tronWeb = win.tronWeb;
+          const base58 = tronWeb?.defaultAddress?.base58;
+          if (!base58) {
+              throw new Error(
+                  win.tronLink?.ready === false
+                  ? "TronLink 지갑이 잠겨 있습니다. 잠금을 해제한 후 다시 시도해주세요."
+                  : "TronLink 주소를 가져오지 못했습니다. 잠금 해제 후 다시 시도해주세요."
+              );
+          }
+          addr = base58;
+      }
 
       if (!addr) throw new Error("주소를 가져오지 못했습니다.");
 
@@ -202,7 +242,7 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
         if (!address) throw new Error("주소가 입력되지 않았습니다.");
         if (targetChain === 'EVM') await addWeb3Wallet(activeAccount.address, address, label || "EVM Wallet", detectedType || "MANUAL");
         else if (targetChain === 'SOL') await addSolanaWallet(activeAccount.address, address, label || "Solana Wallet");
-        else if (targetChain === 'TRON') await addTronWallet(activeAccount.address, address, label || "Tron Wallet");
+        else if (targetChain === 'TRON') await addTronWallet(activeAccount.address, address, label || "Tron Wallet", detectedType || "TRON");
         else if (targetChain === 'BTC') await addBitcoinWallet(activeAccount.address, address, label || "Bitcoin Wallet");
       } 
       else if (mainTab === "CEX") {

@@ -5,24 +5,22 @@ import type { WalletSlot } from "./walletService";
 const CONFIG = {
   ETHERSCAN_KEY: "KEEC1D4R675W1H1G8F58V2DZD3ZK49FAX1", 
   TRONSCAN_KEY: "8cc440ca-a416-4e75-810b-4702879f0837", // 트론은 별도
-  // ✅ 대표님의 iwinv 중계 서버 주소
-  RELAY_URL: "http://49.247.139.241:3000/proxy/etherscan" 
 };
 
 // === 2. [핵심] 지원 네트워크 리스트 (UI에서 쓸 데이터) ===
 export const SUPPORTED_NETWORKS = [
   // [EVM 계열]
-  { id: 'ETH_MAIN', name: 'Ethereum', type: 'EVM', chainId: 1, currency: 'ETH', explorer: 'https://etherscan.io' },
-  { id: 'ETH_SEPOLIA', name: 'Sepolia', type: 'EVM', chainId: 11155111, currency: 'ETH', explorer: 'https://sepolia.etherscan.io' },
-  { id: 'POLY_MAIN', name: 'Polygon', type: 'EVM', chainId: 137, currency: 'POL', explorer: 'https://polygonscan.com' },
-  { id: 'POLY_AMOY', name: 'Amoy', type: 'EVM', chainId: 80002, currency: 'POL', explorer: 'https://amoy.polygonscan.com' },
-  { id: 'BASE_MAIN', name: 'Base', type: 'EVM', chainId: 8453, currency: 'ETH', explorer: 'https://basescan.org' },
-  { id: 'BSC_MAIN', name: 'BNB Chain', type: 'EVM', chainId: 56, currency: 'BNB', explorer: 'https://bscscan.com' },
-  { id: 'ARB_MAIN', name: 'Arbitrum', type: 'EVM', chainId: 42161, currency: 'ETH', explorer: 'https://arbiscan.io' },
+  { id: 'ETH_MAIN', name: 'Ethereum', type: 'EVM', chainId: 1, currency: 'ETH', explorer: 'https://etherscan.io', apiBase: 'https://api.etherscan.io/api' },
+  { id: 'ETH_SEPOLIA', name: 'Sepolia', type: 'EVM', chainId: 11155111, currency: 'ETH', explorer: 'https://sepolia.etherscan.io', apiBase: 'https://api-sepolia.etherscan.io/api' },
+  { id: 'POLY_MAIN', name: 'Polygon', type: 'EVM', chainId: 137, currency: 'POL', explorer: 'https://polygonscan.com', apiBase: 'https://api.polygonscan.com/api' },
+  { id: 'POLY_AMOY', name: 'Amoy', type: 'EVM', chainId: 80002, currency: 'POL', explorer: 'https://amoy.polygonscan.com', apiBase: 'https://api-amoy.polygonscan.com/api' },
+  { id: 'BASE_MAIN', name: 'Base', type: 'EVM', chainId: 8453, currency: 'ETH', explorer: 'https://basescan.org', apiBase: 'https://api.basescan.org/api' },
+  { id: 'BSC_MAIN', name: 'BNB Chain', type: 'EVM', chainId: 56, currency: 'BNB', explorer: 'https://bscscan.com', apiBase: 'https://api.bscscan.com/api' },
+  { id: 'ARB_MAIN', name: 'Arbitrum', type: 'EVM', chainId: 42161, currency: 'ETH', explorer: 'https://arbiscan.io', apiBase: 'https://api.arbiscan.io/api' },
   
   // [Non-EVM 계열]
-  { id: 'SOLANA', name: 'Solana', type: 'SOL', chainId: 0, currency: 'SOL', explorer: 'https://solscan.io' },
-  { id: 'TRON', name: 'Tron', type: 'TRON', chainId: 0, currency: 'TRX', explorer: 'https://tronscan.org' },
+  { id: 'SOLANA', name: 'Solana', type: 'SOL', chainId: 0, currency: 'SOL', explorer: 'https://solscan.io', apiBase: null },
+  { id: 'TRON', name: 'Tron', type: 'TRON', chainId: 0, currency: 'TRX', explorer: 'https://tronscan.org', apiBase: null },
 ];
 
 export type ActivityType = 'SEND' | 'RECEIVE' | 'EXECUTE' | 'UNKNOWN';
@@ -45,10 +43,14 @@ export interface ActivityItem {
 // --- 내부 함수: Relay를 통한 EVM 조회 ---
 async function fetchEvmViaRelay(address: string, networkConfig: typeof SUPPORTED_NETWORKS[0]): Promise<ActivityItem[]> {
   try {
-    const txRes = await fetch(`${CONFIG.RELAY_URL}?chainid=${networkConfig.chainId}&address=${address}&apikey=${CONFIG.ETHERSCAN_KEY}&action=txlist`);
+    const apiKeyParam = CONFIG.ETHERSCAN_KEY ? `&apikey=${CONFIG.ETHERSCAN_KEY}` : '';
+    const txUrl = `https://api.etherscan.io/v2/api?chainid=${networkConfig.chainId}&module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=20&sort=desc${apiKeyParam}`;
+    const tokenUrl = `https://api.etherscan.io/v2/api?chainid=${networkConfig.chainId}&module=account&action=tokentx&address=${address}&startblock=0&endblock=99999999&page=1&offset=20&sort=desc${apiKeyParam}`;
+
+    const txRes = await fetch(txUrl);
     const txData = await txRes.json();
 
-    const tokenRes = await fetch(`${CONFIG.RELAY_URL}?chainid=${networkConfig.chainId}&address=${address}&apikey=${CONFIG.ETHERSCAN_KEY}&action=tokentx`);
+    const tokenRes = await fetch(tokenUrl);
     const tokenData = await tokenRes.json();
 
     const activities: ActivityItem[] = [];

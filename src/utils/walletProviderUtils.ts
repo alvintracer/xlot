@@ -52,6 +52,7 @@ const RDNS: Record<string, string> = {
   BYBIT:      'com.bybit',           // Phase 6-B
   BITGET:     'com.bitget.web3',     // Phase 6-B
   TRUST:      'com.trustwallet.app', // Phase 6-B
+  // TronLink은 EIP-6963 미지원 → legacy window.tronLink 전용
 };
 
 // ── 메인 함수 ────────────────────────────────────────────────
@@ -94,6 +95,10 @@ export const getSpecificProvider = (walletType: string): any | null => {
     case 'TRUST':
       // Trust Wallet은 window.trustWallet 또는 window.ethereum.isTrust
       if (win.trustWallet) return win.trustWallet;
+      break;
+    case 'TRONLINK':
+      // TronLink는 window.tronLink (EIP-6963 미지원)
+      if (win.tronLink) return win.tronLink;
       break;
   }
 
@@ -140,3 +145,18 @@ export type EVMWalletType = typeof EVM_WALLET_TYPES[number];
 
 export const isEVMWallet = (walletType: string): boolean =>
   EVM_WALLET_TYPES.includes(walletType as EVMWalletType);
+
+// ── Tron 지갑 타입 목록 ───────────────────────────────────────
+export const TRON_WALLET_TYPES = ['TRON', 'TRONLINK'] as const;
+export type TronWalletType = typeof TRON_WALLET_TYPES[number];
+export const isTronWallet = (walletType: string): boolean =>
+  TRON_WALLET_TYPES.includes(walletType as TronWalletType);
+
+/**
+ * window.tronWeb 반환 (TronLink 브라우저 확장 주입 객체)
+ * TronLink가 잠금 해제 + 연결된 상태여야 defaultAddress.base58 이 유효함.
+ */
+export const getTronLinkWeb = (): any | null => {
+  if (typeof window === 'undefined') return null;
+  return (window as any).tronWeb || null;
+};

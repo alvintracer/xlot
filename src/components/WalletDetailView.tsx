@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft, Copy, Send, Download, History,
   ArrowUpRight, ArrowDownLeft, Loader2, RefreshCw, Globe,
-  Building2, Coins, ShieldCheck, Check
+  Building2, Coins, ShieldCheck, Check, Key, MoreVertical
 } from "lucide-react";
 import { useActiveAccount } from "thirdweb/react";
 import type { WalletSlot } from "../services/walletService";
@@ -18,6 +18,8 @@ import { KYCRegistrationModal } from "./KYCRegistrationModal";
 import { hasKYCOnDevice } from "../services/kycDeviceService";
 import { SendModal } from "./AssetSendModal";
 import { ReceiveModal } from "./AssetReceiveModal";
+import { SSSSigningModal } from "./SSSSigningModal";
+import { SeedBackupModal } from "./AssetSeedBackupModal";
 // ClaimType 제거됨 — credentialService가 KYC_VERIFIED로 통합
 
 interface Props {
@@ -49,7 +51,11 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
   const [kycRefresh, setKycRefresh]               = useState(0);
   const [showKYCReg, setShowKYCReg]               = useState(false);
   const [isSendOpen, setIsSendOpen]               = useState(false);
-  const [isReceiveOpen, setIsReceiveOpen]          = useState(false);
+  const [isReceiveOpen, setIsReceiveOpen] = useState(false);
+  const [isSssExportModalOpen, setIsSssExportModalOpen] = useState(false);
+  const [mnemonicToBackup, setMnemonicToBackup] = useState<string | null>(null);
+  const [backupCleanup, setBackupCleanup] = useState<(() => void) | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // userId 먼저 선언 — hasKYC보다 앞에 위치해야 함
   const isCex       = ['UPBIT', 'BITHUMB', 'BINANCE'].includes(wallet.wallet_type);
@@ -139,9 +145,36 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
             {(isXlot || isSSSWallet) && <img src="/icon-192.png" alt="xLOT" className="w-5 h-5 rounded-full object-cover" />}
             {wallet.label}
           </h2>
-          <button onClick={loadHistory} disabled={loading} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white">
-            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
-          </button>
+          <div className="flex items-center gap-1 relative">
+            <button onClick={loadHistory} disabled={loading} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
+              <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+            </button>
+            
+            {/* 3-dots Menu for Details View */}
+            {isSSSWallet && (
+              <div className="relative">
+                <button 
+                  onClick={() => setIsMenuOpen(!isMenuOpen)} 
+                  className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors"
+                >
+                  <MoreVertical size={18} />
+                </button>
+                {isMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsMenuOpen(false)}></div>
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in-up">
+                      <button 
+                        onClick={() => { setIsSssExportModalOpen(true); setIsMenuOpen(false); }} 
+                        className="w-full px-4 py-3 text-left text-xs font-bold text-amber-400 hover:bg-amber-500/10 flex items-center gap-2"
+                      >
+                        <Key size={14} className="text-amber-400"/> 비밀 구문 추출
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -230,9 +263,11 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
         {/* ── XLOT_SSS 멀티체인 주소 섹션 ── */}
         {isSSSWallet && multiChainAddresses.length > 0 && (
           <div className="mb-6 bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-3">
-            <div className="flex items-center gap-2 mb-1">
-              <ShieldCheck size={14} className="text-cyan-400" />
-              <span className="text-sm font-bold text-white">멀티체인 주소</span>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={14} className="text-cyan-400" />
+                <span className="text-sm font-bold text-white">멀티체인 주소</span>
+              </div>
             </div>
             {multiChainAddresses.map(({ key, addr, label, color, bg, explorer }) => (
               <div key={key} className={`${bg} border border-slate-800 rounded-2xl p-3`}>
@@ -449,6 +484,34 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
 
       {isSendOpen && <SendModal onClose={() => setIsSendOpen(false)} />}
       {isReceiveOpen && <ReceiveModal onClose={() => setIsReceiveOpen(false)} />}
+      
+      {isSssExportModalOpen && (
+        <div className="relative z-[200]">
+          <SSSSigningModal
+            walletAddress={wallet.addresses.evm!}
+            purpose="비밀 구문 내보내기 (외부 지갑 마이그레이션)"
+            onSigned={(result) => {
+               const { mnemonic, cleanup } = result;
+               setMnemonicToBackup(mnemonic);
+               setBackupCleanup(() => cleanup);
+               setIsSssExportModalOpen(false);
+            }}
+            onCancel={() => setIsSssExportModalOpen(false)}
+          />
+        </div>
+      )}
+
+      {mnemonicToBackup && (
+        <div className="relative z-[200]">
+          <SeedBackupModal 
+            mnemonic={mnemonicToBackup} 
+            onClose={() => {
+              setMnemonicToBackup(null);
+              if (backupCleanup) backupCleanup();
+            }} 
+          />
+        </div>
+      )}
     </div>
   );
 }
