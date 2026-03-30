@@ -20,6 +20,7 @@ import { SendModal } from "./AssetSendModal";
 import { ReceiveModal } from "./AssetReceiveModal";
 import { SSSSigningModal } from "./SSSSigningModal";
 import { SeedBackupModal } from "./AssetSeedBackupModal";
+import { ExchangeConnectModal } from "./ExchangeConnectModal";
 // ClaimType 제거됨 — credentialService가 KYC_VERIFIED로 통합
 
 interface Props {
@@ -56,6 +57,7 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
   const [mnemonicToBackup, setMnemonicToBackup] = useState<string | null>(null);
   const [backupCleanup, setBackupCleanup] = useState<(() => void) | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showExchangeConnect, setShowExchangeConnect] = useState(false);
 
   // userId 먼저 선언 — hasKYC보다 앞에 위치해야 함
   const isCex       = ['UPBIT', 'BITHUMB', 'BINANCE'].includes(wallet.wallet_type);
@@ -149,31 +151,6 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
             <button onClick={loadHistory} disabled={loading} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
               <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
             </button>
-            
-            {/* 3-dots Menu for Details View */}
-            {isSSSWallet && (
-              <div className="relative">
-                <button 
-                  onClick={() => setIsMenuOpen(!isMenuOpen)} 
-                  className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors"
-                >
-                  <MoreVertical size={18} />
-                </button>
-                {isMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsMenuOpen(false)}></div>
-                    <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in-up">
-                      <button 
-                        onClick={() => { setIsSssExportModalOpen(true); setIsMenuOpen(false); }} 
-                        className="w-full px-4 py-3 text-left text-xs font-bold text-amber-400 hover:bg-amber-500/10 flex items-center gap-2"
-                      >
-                        <Key size={14} className="text-amber-400"/> 비밀 구문 추출
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -187,6 +164,37 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
             ${isCex ? 'bg-gradient-to-b from-indigo-900/20 to-slate-900 border-indigo-500/30'
             : (isSSSWallet || isXlot) ? 'bg-gradient-to-b from-cyan-900/10 to-slate-900 border-cyan-500/20'
             : 'bg-slate-900 border-slate-800'}`}>
+
+          {/* 3-dots Menu moved inside top card */}
+          {isSSSWallet && (
+            <div className="absolute top-4 right-4 z-50">
+              <button 
+                onClick={() => setIsMenuOpen(!isMenuOpen)} 
+                className="p-2 bg-slate-800/50 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors backdrop-blur-sm border border-slate-700/50"
+              >
+                <MoreVertical size={18} />
+              </button>
+              {isMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsMenuOpen(false)}></div>
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in-up text-left">
+                    <button 
+                      onClick={() => { setShowExchangeConnect(true); setIsMenuOpen(false); }} 
+                      className="w-full px-4 py-3 text-left text-xs font-bold text-cyan-400 hover:bg-cyan-500/10 flex items-center gap-2 border-b border-slate-700"
+                    >
+                      🏦 거래소 연동
+                    </button>
+                    <button 
+                      onClick={() => { setIsSssExportModalOpen(true); setIsMenuOpen(false); }} 
+                      className="w-full px-4 py-3 text-left text-xs font-bold text-amber-400 hover:bg-amber-500/10 flex items-center gap-2"
+                    >
+                      <Key size={14} className="text-amber-400"/> 비밀 구문 추출
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-2xl mb-4 relative z-10
               ${(isSSSWallet || isXlot) ? 'bg-cyan-500/20 border-2 border-cyan-500/30 text-cyan-400 p-1 overflow-hidden'
@@ -480,6 +488,16 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
           onClose={() => setShowKYCReg(false)}
           onSuccess={() => setKycRefresh(r => r + 1)}
         />
+      )}
+
+      {showExchangeConnect && (
+        <div className="relative z-[200]">
+          <ExchangeConnectModal
+            walletAddress={wallet.addresses.evm!}
+            walletLabel={wallet.label}
+            onClose={() => setShowExchangeConnect(false)}
+          />
+        </div>
       )}
 
       {isSendOpen && <SendModal onClose={() => setIsSendOpen(false)} />}
