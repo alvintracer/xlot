@@ -1,86 +1,101 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>xLOT 개인정보처리방침 (Privacy Policy)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>xLOT Wallet Privacy Policy</title>
   <style>
-    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f8fafc; margin: 0; padding: 0; }
-    .container { max-width: 800px; margin: 40px auto; background: #ffffff; padding: 50px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
-    h1 { font-size: 26px; border-bottom: 2px solid #22d3ee; padding-bottom: 15px; margin-bottom: 30px; color: #0f172a; }
-    h2 { font-size: 18px; margin-top: 35px; margin-bottom: 15px; color: #1e293b; display: flex; align-items: center; gap: 8px; }
-    h2::before { content: ''; display: block; width: 4px; height: 18px; background: #22d3ee; border-radius: 2px; }
-    p, li { font-size: 15px; color: #475569; word-break: keep-all; margin-bottom: 10px; }
-    ul { padding-left: 24px; margin-bottom: 20px; }
-    li { margin-bottom: 8px; }
-    strong { color: #0f172a; }
-    .company-info { background: #f1f5f9; padding: 20px 25px; border-radius: 12px; margin-top: 40px; font-size: 14px; border: 1px solid #e2e8f0; }
-    .company-info p { margin-top: 0; color: #334155; }
-    .company-info ul { list-style: none; padding: 0; margin: 0; }
-    .company-info li { margin-bottom: 6px; }
-    .company-info a { color: #0ea5e9; text-decoration: none; font-weight: 500; }
-    .company-info a:hover { text-decoration: underline; }
-    .footer { margin-top: 40px; font-size: 13px; color: #94a3b8; text-align: center; border-top: 1px dashed #cbd5e1; padding-top: 20px; }
-    
-    @media (max-width: 768px) {
-      .container { margin: 20px; padding: 30px 20px; }
-      h1 { font-size: 22px; }
-      h2 { font-size: 16px; }
-      p, li { font-size: 14px; }
-    }
+    body { font-family: Arial, sans-serif; line-height: 1.65; color: #222; max-width: 860px; margin: 40px auto; padding: 0 20px; }
+    h1, h2 { color: #111; }
+    h1 { margin-bottom: 8px; }
+    .meta { color: #666; margin-bottom: 24px; }
+    ul { padding-left: 22px; }
+    a { color: #0b57d0; text-decoration: none; }
+    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>xLOT 개인정보처리방침 (Privacy Policy)</h1>
-    <p><strong>TRAVERSE CO.,Ltd</strong>(이하 "회사")는 사용자의 개인정보를 중요시하며, 안전하게 보호하기 위해 최선을 다하고 있습니다. 본 개인정보처리방침은 xLOT Chrome Extension 및 웹 지갑 서비스(이하 "서비스") 이용 시 수집되는 정보와 그 활용 목적, 보관 및 파기 등에 대해 안내합니다.</p>
+  <h1>xLOT Wallet Privacy Policy</h1>
+  <p class="meta">Effective date: April 1, 2026</p>
 
-    <h2>1. 수집하는 개인정보 항목 및 수집 방법</h2>
-    <p>회사는 서비스 제공 및 안전한 지갑 생성을 위해 별도의 회원가입 절차 없이 다음의 필수 정보를 수집할 수 있습니다.</p>
-    <ul>
-      <li><strong>이메일 주소:</strong> Thirdweb 기반의 스마트 월렛 생성 및 로그인, SSS(Shamir's Secret Sharing) 비수탁 지갑 복구 시 이메일 OTP(One-Time Password) 인증을 위해 수집됩니다.</li>
-      <li><strong>기기 정보 (Device UUID 등):</strong> 비인가 접근 차단, 다중 기기에서의 세션 식별 및 사용자 인증 강화를 위해 익명화된 기기 식별자를 수집합니다.</li>
-      <li><strong>지갑 주소 (Public Address):</strong> 사용자의 자산 조회, 백업 식별 및 서비스 동기화를 위해 블록체인 상에 공개된 지갑 주소 데이터를 저장합니다.</li>
-      <li><strong>암호화된 프라이빗 키 파편 (Encrypted Shares):</strong> 사용자가 SSS 기반 비수탁 지갑을 생성할 경우, 프라이빗 키는 3개의 조각으로 분할 및 각각 안전하게 암호화되어 Supabase 서버에 보관됩니다. <strong>서버는 단독으로 이를 원문으로 복구(복호화)할 수 없으며,</strong> 오직 사용자 본인의 다중 요소 인증(비밀번호, 이메일, 휴대폰 OTP)을 거쳐 클라이언트 기기 환경에서만 합산 및 복호화됩니다.</li>
-    </ul>
+  <p>
+    TRAVERSE CO.,Ltd ("Company", "we", "our", or "us") provides the xLOT Wallet browser extension
+    (the "Service"). This Privacy Policy explains what information we process, why we process it,
+    and how users may contact us regarding privacy requests.
+  </p>
 
-    <h2>2. 개인정보의 수집 및 이용 목적</h2>
-    <p>수집된 정보는 오직 다음의 목적으로만 이용됩니다.</p>
-    <ul>
-      <li>회원 식별, 서비스 가입 및 로그인 세션 유지 (Thirdweb Auth)</li>
-      <li>안전한 지갑 키 백업 및 복구 프로세스 지원 (Supabase 보관, 이메일 OTP 기반 복구)</li>
-      <li>서비스 내 알림 메시지 발송 및 고객 문의, 분쟁 처리 등 응대</li>
-      <li>보안 침해 사고(해킹 등) 방지 및 비인가 사용 모니터링</li>
-    </ul>
+  <h2>1. Scope</h2>
+  <p>
+    This Policy applies to the xLOT Wallet browser extension and related wallet services.
+  </p>
 
-    <h2>3. 개인정보의 제3자 제공 및 위탁</h2>
-    <p>회사는 원칙적으로 사용자의 개인정보를 외부에 제공하지 않습니다. 단, 원활한 서비스 제공을 위해 불가피한 최소한의 범위 내에서 아래의 인프라 및 보안 솔루션을 활용(위탁)하고 있습니다.</p>
-    <ul>
-      <li><strong>Thirdweb:</strong> 스마트 월렛 사용자 인증(이메일, 소셜 계정) 및 세션 토큰 관리</li>
-      <li><strong>Supabase:</strong> 사용자 식별 정보, 공개 지갑 주소, 암호화된 키 파편(Share) 및 기기 설정 데이터 클라우드 저장</li>
-    </ul>
-    <p>저장되는 모든 민감 데이터(프라이빗 키 파편 등)는 사용자의 단말기(기기 로컬)에서 완전히 암호화된 상태로만 서버로 전송 및 저장되므로, <strong>회사 관리자 및 제3자 클라우드 제공자 모두 사용자의 자산 탈취 또는 키 원문 열람이 원천적으로 불가능</strong>합니다.</p>
+  <h2>2. Information We Process</h2>
+  <p>We limit data processing to what is reasonably necessary to provide wallet functionality.</p>
+  <ul>
+    <li><strong>Account and authentication information</strong>: such as email address or login identifiers, when needed for wallet sign-in, account recovery, or security verification.</li>
+    <li><strong>Wallet-related information</strong>: such as public wallet addresses and transaction request metadata needed to provide wallet connection, signing, and account display features.</li>
+    <li><strong>Device or technical information</strong>: such as basic device/session identifiers and extension settings needed for security, fraud prevention, session continuity, and service operation.</li>
+    <li><strong>Encrypted backup data</strong>: if a user chooses wallet backup or recovery features, encrypted key material or encrypted backup fragments may be stored in encrypted form to support recovery. We do not claim access to decrypted private keys through this backup storage alone.</li>
+  </ul>
 
-    <h2>4. 개인정보의 보유 및 이용 기간</h2>
-    <p>사용자의 개인정보는 <strong>서비스 이용 종료 또는 탈퇴(데이터 삭제 요청) 시점</strong>까지 안전하게 보관되며, 목적 달성 시 복구할 수 없는 기술적 방법을 통해 즉시 영구 파기됩니다. (단, 관련 법령에 의해 데이터 보존이 요구될 경우 법령이 정한 최저 기간 동안 분리 보관합니다.)</p>
+  <h2>3. How We Use Information</h2>
+  <ul>
+    <li>To provide wallet connection, authentication, signing, and account-related features.</li>
+    <li>To maintain security, prevent unauthorized access, and support account recovery.</li>
+    <li>To store user-selected settings and maintain extension functionality.</li>
+    <li>To respond to support requests and service-related inquiries.</li>
+    <li>To comply with applicable law, lawful requests, or security obligations where required.</li>
+  </ul>
 
-    <h2>5. 사용자의 권리 및 데이터 삭제 요구</h2>
-    <p>사용자는 언제든지 자신의 개인정보(이메일, 기기 연동 정보, 백업된 암호화 데이터 등)에 대한 열람, 정정 및 파기(삭제)를 요청할 권리가 있습니다. 서비스 탈퇴 및 기록의 영구 삭제를 원하시는 경우 앱 내 지원 메뉴 또는 아래 이메일 문의를 통해 즉시 처리해 드립니다.</p>
+  <h2>4. Website Access and On-Page Data</h2>
+  <p>
+    The extension may interact with webpages that users choose to visit in order to provide wallet connectivity
+    to decentralized applications and related web services. We do not sell browsing data, and we do not use
+    webpage information for advertising purposes.
+  </p>
 
-    <h2>6. 개인정보 보호 담당자 및 문의처</h2>
-    <div class="company-info">
-      <p>본 개인정보처리방침이나 서비스 보안에 대한 전반적인 문의, 불만 처리 등이 필요하실 경우 아래 연락처로 언제든 문의해 주시기 바랍니다.</p>
-      <ul>
-        <li><strong>회사명:</strong> TRAVERSE CO.,Ltd</li>
-        <li><strong>사업자 등록번호:</strong> 364-86-033411</li>
-        <li><strong>책임 이메일:</strong> <a href="mailto:biz@traverse.kr">biz@traverse.kr</a></li>
-      </ul>
-    </div>
-    
-    <div class="footer">
-      시행일자: 2026년 4월 1일 <br/>
-      본 개인정보처리방침은 회사 사이트 및 애플리케이션 내 상시 공개됩니다.
-    </div>
-  </div>
+  <h2>5. Sharing of Information</h2>
+  <p>
+    We do not sell personal information. We may share limited information with service providers only where
+    reasonably necessary to operate the Service, such as authentication, cloud storage, infrastructure,
+    security, or customer support providers. We may also disclose information where required by law.
+  </p>
+
+  <h2>6. Data Retention</h2>
+  <p>
+    We retain information only for as long as reasonably necessary to provide the Service, maintain security,
+    meet legal obligations, resolve disputes, or enforce agreements. Encrypted backup information may remain
+    stored until a user requests deletion or the account/service relationship ends, subject to legal obligations.
+  </p>
+
+  <h2>7. Data Security</h2>
+  <p>
+    We use reasonable administrative, technical, and organizational measures to protect information.
+    However, no method of electronic storage or transmission is completely secure.
+  </p>
+
+  <h2>8. Your Choices</h2>
+  <p>
+    Users may request access, correction, or deletion of applicable personal information, subject to legal
+    and operational limitations. Users may also discontinue use of the extension at any time.
+  </p>
+
+  <h2>9. Children</h2>
+  <p>
+    The Service is not directed to children under the age required by applicable law, and we do not knowingly
+    collect personal information from children in violation of applicable law.
+  </p>
+
+  <h2>10. Changes to This Policy</h2>
+  <p>
+    We may update this Privacy Policy from time to time. The updated version will be posted at the same URL
+    with a revised effective date.
+  </p>
+
+  <h2>11. Contact</h2>
+  <p>
+    Company: TRAVERSE CO.,Ltd<br />
+    Email: <a href="mailto:biz@traverse.kr">biz@traverse.kr</a>
+  </p>
 </body>
 </html>
