@@ -374,13 +374,29 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                     let finalAmountToSend = parseFloat(finalTokenAmount);
 
                     if (needsJit) {
-                        alert("TRX 가스비가 부족하여 백그라운드 JIT 선지원을 요청합니다. (약 3초 소요)");
+                        alert("TRX 가스비가 부족하여 백그라운드 JIT 선지원을 요청합니다. (최대 15초 소요)");
                         await requestTronJit(selectedWallet.addresses.trx || '');
                         // 수수료 0.1 USDT 차감
                         finalAmountToSend = finalAmountToSend - 0.1;
                         if (finalAmountToSend <= 0) throw new Error("전송 금액이 JIT 수수료(0.1 USDT)보다 작습니다.");
-                        // 선지원금 도착 대기
-                        await new Promise(r => setTimeout(r, 4000));
+                        
+                        // 선지원금 도착 대기 (최대 15초 폴링)
+                        let jitConfirmed = false;
+                        for (let i = 0; i < 7; i++) {
+                            await new Promise(r => setTimeout(r, 3000));
+                            try {
+                                const checkRes = await fetch(`https://api.trongrid.io/v1/accounts/${selectedWallet.addresses.trx}`);
+                                const checkData = await checkRes.json();
+                                if (checkData && checkData.data && checkData.data.length > 0) {
+                                    jitConfirmed = true;
+                                    break;
+                                }
+                            } catch (err) {}
+                        }
+                        
+                        if (!jitConfirmed) {
+                            alert("⚠️ TRX 가스 지원이 지연되고 있습니다. 잠시 후 트랜잭션이 실패할 수 있습니다.");
+                        }
                     }
 
                     let txHash = '';
