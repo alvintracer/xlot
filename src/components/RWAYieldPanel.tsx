@@ -235,7 +235,7 @@ function RWACard({
         </div>
 
         <div className="text-right shrink-0">
-          <div className={`text-sm font-black ${isYield ? 'text-emerald-400' : 'text-yellow-400'}`}>
+          <div className={`text-sm font-black ${isYield ? 'text-emerald-400' : 'text-teal-400'}`}>
             {apyText}
           </div>
           <div className="text-xs text-white font-mono mt-1">{priceDisplay}</div>
@@ -319,8 +319,8 @@ function RWACard({
         const liq = RWA_LIQUIDITY_FALLBACK[asset.id];
         if (!liq) return null;
         const lvl = liq.liquidityUsd >= 10_000_000 ? { label: '유동성 높음', color: 'text-emerald-400', dot: 'bg-emerald-400' }
-                  : liq.liquidityUsd >= 1_000_000  ? { label: '유동성 보통', color: 'text-yellow-400',  dot: 'bg-yellow-400'  }
-                  :                                  { label: '유동성 낮음', color: 'text-orange-400',  dot: 'bg-orange-400'  };
+                  : liq.liquidityUsd >= 1_000_000  ? { label: '유동성 보통', color: 'text-teal-400',  dot: 'bg-teal-400'  }
+                  :                                  { label: '유동성 낮음', color: 'text-blue-400',  dot: 'bg-blue-400'  };
         const fmtLiq = liq.liquidityUsd >= 1_000_000
           ? `$${(liq.liquidityUsd / 1_000_000).toFixed(1)}M`
           : `$${(liq.liquidityUsd / 1_000).toFixed(0)}K`;

@@ -36,9 +36,9 @@ export function SeedImportModal({ onClose, onSuccess }: Props) {
           </button>
         </div>
 
-        <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl mb-6 flex items-start gap-3">
-          <AlertCircle className="text-yellow-500 shrink-0 mt-0.5" size={18} />
-          <div className="text-xs text-yellow-200/80 leading-relaxed">
+        <div className="bg-teal-500/10 border border-teal-500/20 p-4 rounded-xl mb-6 flex items-start gap-3">
+          <AlertCircle className="text-teal-500 shrink-0 mt-0.5" size={18} />
+          <div className="text-xs text-teal-200/80 leading-relaxed">
             현재 기기에는 <b>보안 키</b>가 없습니다.<br/>
             송금/스왑을 하려면 최초 가입 시 발급받은<br/>
             <b>12자리 구문(니모닉)</b>을 입력하여 키를 복원해야 합니다.

@@ -532,8 +532,8 @@ export function formatLiquidity(usd: number): string {
 export function getLiquidityLevel(usd: number): { label: string; color: string } {
   if (usd >= 50_000_000)  return { label: '매우 높음', color: 'text-emerald-400' };
   if (usd >= 10_000_000)  return { label: '높음',     color: 'text-emerald-400' };
-  if (usd >= 1_000_000)   return { label: '보통',     color: 'text-yellow-400'  };
-  if (usd >= 100_000)     return { label: '낮음',     color: 'text-orange-400'  };
+  if (usd >= 1_000_000)   return { label: '보통',     color: 'text-teal-400'  };
+  if (usd >= 100_000)     return { label: '낮음',     color: 'text-blue-400'  };
   return                         { label: '매우 낮음', color: 'text-red-400'     };
 }
 

@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:extension": "BUILD_TARGET=extension vite dev",
     "build": "NODE_OPTIONS='--max_old_space_size=4096' tsc -b && NODE_OPTIONS='--max_old_space_size=4096' vite build",
+    "build:extension": "NODE_OPTIONS='--max_old_space_size=4096' tsc -b && NODE_OPTIONS='--max_old_space_size=4096' BUILD_TARGET=extension vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -39,7 +41,9 @@
     "wagmi": "^3.3.4"
   },
   "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0-beta.33",
     "@eslint/js": "^9.39.1",
+    "@types/chrome": "^0.1.38",
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^24.10.1",
     "@types/qrcode.react": "^1.0.5",

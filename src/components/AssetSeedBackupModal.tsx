@@ -53,7 +53,7 @@ export function SeedBackupModal({ mnemonic, onClose }: Props) {
           
           <button 
             onClick={onClose}
-            className="flex-1 py-4 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 rounded-2xl font-bold text-white shadow-lg transition-transform active:scale-95"
+            className="flex-1 py-4 bg-gradient-to-r from-red-600 to-blue-600 hover:from-red-500 hover:to-blue-500 rounded-2xl font-bold text-white shadow-lg transition-transform active:scale-95"
           >
             저장했습니다
           </button>

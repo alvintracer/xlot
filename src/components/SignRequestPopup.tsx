@@ -48,7 +48,7 @@ function extractHost(origin: string): string {
 /** 서명 타입 레이블 */
 const TYPE_LABEL: Record<SignRequest['type'], { label: string; desc: string; color: string }> = {
   personal_sign:       { label: '메시지 서명',              desc: '일반 텍스트 서명 (로그인 등)',    color: 'text-blue-400'  },
-  eth_sign:            { label: '메시지 서명 (Legacy)',      desc: '레거시 방식 서명',                 color: 'text-amber-400' },
+  eth_sign:            { label: '메시지 서명 (Legacy)',      desc: '레거시 방식 서명',                 color: 'text-cyan-400' },
   eth_signTypedData_v4:{ label: '구조화 데이터 서명 (EIP-712)', desc: '구조화된 데이터에 대한 서명',  color: 'text-purple-400'},
 };
 
@@ -125,8 +125,8 @@ export function SignRequestPopup({ request, wallet, onSign, onReject }: Props) {
         {/* ── 헤더 ──────────────────────────────────────────── */}
         <div className="flex items-start justify-between p-5 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <ShieldAlert size={18} className="text-amber-400" />
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center shrink-0">
+              <ShieldAlert size={18} className="text-cyan-400" />
             </div>
             <div>
               <p className={`text-sm font-black ${typeInfo.color}`}>{typeInfo.label}</p>
@@ -170,9 +170,9 @@ export function SignRequestPopup({ request, wallet, onSign, onReject }: Props) {
           </div>
 
           {/* ── 경고 ───────────────────────────────────────── */}
-          <div className="flex items-start gap-2 p-3 bg-amber-500/8 border border-amber-500/20 rounded-xl">
-            <AlertTriangle size={13} className="text-amber-400 mt-0.5 shrink-0" />
-            <p className="text-[10px] text-amber-300/80 leading-relaxed">
+          <div className="flex items-start gap-2 p-3 bg-cyan-500/8 border border-cyan-500/20 rounded-xl">
+            <AlertTriangle size={13} className="text-cyan-400 mt-0.5 shrink-0" />
+            <p className="text-[10px] text-cyan-300/80 leading-relaxed">
               서명은 자산 이동을 유발하지 않습니다. 주로 거래소 본인 확인(로그인·지갑 등록)에 사용됩니다.
               출처가 신뢰할 수 있는 거래소인지 꼭 확인하세요.
             </p>
@@ -200,7 +200,7 @@ export function SignRequestPopup({ request, wallet, onSign, onReject }: Props) {
             onClick={handleSign}
             disabled={signing}
             className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white
-              bg-gradient-to-r from-amber-500 to-orange-500
+              bg-gradient-to-r from-cyan-500 to-blue-500
               hover:shadow-[0_0_20px_rgba(245,158,11,0.35)] transition-all
               disabled:opacity-40 flex items-center justify-center gap-2"
           >

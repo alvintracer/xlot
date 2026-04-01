@@ -144,9 +144,9 @@ export function AssetSSSAuthModal({ walletAddress, onClose, onSuccess }: Props) 
 
         {step === 'phone' && (
           <div className="space-y-4">
-            <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 mb-2">
-              <AlertCircle size={14} className="text-amber-400 mb-1" />
-              <p className="text-[10px] text-amber-300">
+            <div className="bg-cyan-500/10 p-3 rounded-xl border border-cyan-500/20 mb-2">
+              <AlertCircle size={14} className="text-cyan-400 mb-1" />
+              <p className="text-[10px] text-cyan-300">
                 휴대폰 OTP 인증이 필요합니다 (Share B).<br/>
                 저장 시 사용한 번호를 입력하세요.
               </p>

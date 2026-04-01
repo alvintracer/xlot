@@ -111,8 +111,8 @@ export function TravelRuleModal({
         {/* 헤더 */}
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <ShieldCheck size={18} className="text-amber-400" />
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+              <ShieldCheck size={18} className="text-cyan-400" />
             </div>
             <div>
               <p className="text-sm font-black text-white">Travel Rule 확인</p>
@@ -145,9 +145,9 @@ export function TravelRuleModal({
         </div>
 
         {/* 법적 안내 */}
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2">
-          <AlertCircle size={14} className="text-amber-400 mt-0.5 shrink-0" />
-          <p className="text-[10px] text-amber-300/80 leading-relaxed">
+        <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3 flex items-start gap-2">
+          <AlertCircle size={14} className="text-cyan-400 mt-0.5 shrink-0" />
+          <p className="text-[10px] text-cyan-300/80 leading-relaxed">
             한국 특금법 및 FATF Travel Rule에 따라{' '}
             <span className="font-bold">
               {(TRAVEL_RULE_THRESHOLD_KRW / 10000).toFixed(0)}만원 이상
@@ -164,7 +164,7 @@ export function TravelRuleModal({
               onClick={() => { setIsSelfTransfer(false); }}
               className={`py-3 rounded-xl text-sm font-bold border transition-all ${
                 !isSelfTransfer
-                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                  ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
                   : 'bg-slate-900 border-slate-800 text-slate-500'
               }`}
             >
@@ -177,7 +177,7 @@ export function TravelRuleModal({
               }}
               className={`py-3 rounded-xl text-sm font-bold border transition-all ${
                 isSelfTransfer
-                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                  ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
                   : 'bg-slate-900 border-slate-800 text-slate-500'
               }`}
             >
@@ -197,7 +197,7 @@ export function TravelRuleModal({
               value={beneficiaryName}
               onChange={e => setBeneficiaryName(e.target.value)}
               placeholder="홍길동"
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500/50"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50"
             />
           </div>
         )}
@@ -235,7 +235,7 @@ export function TravelRuleModal({
                 <select
                   value={beneficiaryVasp}
                   onChange={e => setBeneficiaryVasp(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500/50 appearance-none"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50 appearance-none"
                 >
                   <option value="">선택 (선택사항)</option>
                   {knownVasps.map(v => (
@@ -258,7 +258,7 @@ export function TravelRuleModal({
                 value={beneficiaryVasp}
                 onChange={e => setBeneficiaryVasp(e.target.value)}
                 placeholder="VASP명 입력 또는 '개인 지갑'"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500/50"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50"
               />
               <button
                 onClick={() => { setIsUnknownVasp(false); setBeneficiaryVasp(''); }}
@@ -284,7 +284,7 @@ export function TravelRuleModal({
                   onClick={() => setPurpose(key)}
                   className={`py-2.5 rounded-xl text-xs font-bold border transition-all text-left px-3 ${
                     purpose === key
-                      ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                      ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
                       : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'
                   }`}
                 >
@@ -299,7 +299,7 @@ export function TravelRuleModal({
               value={purposeDetail}
               onChange={e => setPurposeDetail(e.target.value)}
               placeholder="전송 목적을 구체적으로 입력해주세요 (5자 이상)"
-              className="w-full mt-3 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500/50 h-20 resize-none"
+              className="w-full mt-3 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50 h-20 resize-none"
             />
           )}
         </div>
@@ -319,7 +319,7 @@ export function TravelRuleModal({
         <button
           onClick={handleConfirm}
           disabled={isLoading}
-          className="w-full py-4 rounded-2xl font-black text-base text-white bg-gradient-to-r from-amber-500 to-orange-500 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
+          className="w-full py-4 rounded-2xl font-black text-base text-white bg-gradient-to-r from-cyan-500 to-blue-500 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
         >
           {isLoading
             ? <><Loader2 size={16} className="animate-spin" /> 저장 중...</>

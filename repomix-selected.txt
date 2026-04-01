@@ -295,8 +295,8 @@ export function AddAddressModal({ slotId, onClose, onSuccess }: Props) {
 
           {(tab === 'ALL' || tab === 'BTC') && (
             <div>
-               <label className="text-xs font-bold text-orange-500 mb-1 block ml-1">Bitcoin</label>
-               <input value={inputs.btc} onChange={(e) => handleChange('btc', e.target.value)} placeholder="1, 3, bc1..." className="w-full bg-slate-950 text-white p-4 rounded-2xl outline-none border border-slate-800 focus:border-orange-500 text-sm font-mono" />
+               <label className="text-xs font-bold text-blue-500 mb-1 block ml-1">Bitcoin</label>
+               <input value={inputs.btc} onChange={(e) => handleChange('btc', e.target.value)} placeholder="1, 3, bc1..." className="w-full bg-slate-950 text-white p-4 rounded-2xl outline-none border border-slate-800 focus:border-blue-500 text-sm font-mono" />
             </div>
           )}
 
@@ -345,16 +345,16 @@ interface Props {
 
 // === CONSTANTS ===
 const WEB3_WALLETS = [
-  { id: 'METAMASK', name: 'MetaMask', icon: '🦊', bg: 'bg-orange-500/10', color: 'text-orange-500', supported: ['EVM'] },
+  { id: 'METAMASK', name: 'MetaMask', icon: '🦊', bg: 'bg-blue-500/10', color: 'text-blue-500', supported: ['EVM'] },
   { id: 'RABBY', name: 'Rabby', icon: '🐰', bg: 'bg-blue-500/10', color: 'text-blue-500', supported: ['EVM'] },
   { id: 'PHANTOM', name: 'Phantom', icon: '👻', bg: 'bg-purple-500/10', color: 'text-purple-500', supported: ['SOL', 'EVM', 'BTC'] },
-  { id: 'SOLFLARE', name: 'Solflare', icon: '☀️', bg: 'bg-orange-400/10', color: 'text-orange-400', supported: ['SOL'] },
+  { id: 'SOLFLARE', name: 'Solflare', icon: '☀️', bg: 'bg-blue-400/10', color: 'text-blue-400', supported: ['SOL'] },
   { id: 'OKX', name: 'OKX Wallet', icon: 'X', bg: 'bg-slate-800', color: 'text-white', supported: ['EVM', 'SOL', 'TRON', 'BTC'] },
 ];
 
 const CEX_LIST = [
   { id: 'UPBIT', name: 'Upbit', icon: 'Up', bg: 'bg-indigo-500/10', color: 'text-indigo-500', url: "https://upbit.com/mypage/open_api_management" },
-  { id: 'BITHUMB', name: 'Bithumb', icon: 'Bi', bg: 'bg-orange-500/10', color: 'text-orange-500', url: "https://www.bithumb.com/react/api-support/management-api" },
+  { id: 'BITHUMB', name: 'Bithumb', icon: 'Bi', bg: 'bg-blue-500/10', color: 'text-blue-500', url: "https://www.bithumb.com/react/api-support/management-api" },
   { id: 'BINANCE', name: 'Binance', icon: '🟡', bg: 'bg-yellow-500/10', color: 'text-yellow-500', url: "https://www.binance.com/en/my/settings/api-management" },
   { id: 'OKX_CEX', name: 'OKX', icon: 'OK', bg: 'bg-white/10', color: 'text-white', url: "https://www.okx.com/account/users/api" },
 ];
@@ -363,7 +363,7 @@ const CHAINS = [
   { id: 'EVM', label: 'Ethereum', color: 'cyan' },
   { id: 'SOL', label: 'Solana', color: 'purple' },
   { id: 'TRON', label: 'Tron', color: 'red' },
-  { id: 'BTC', label: 'Bitcoin', color: 'orange' },
+  { id: 'BTC', label: 'Bitcoin', color: 'blue' },
 ];
 
 export function AddWalletModal({ onClose, onSuccess }: Props) {
@@ -955,7 +955,7 @@ export function SeedBackupModal({ mnemonic, onClose }: Props) {
           
           <button 
             onClick={onClose}
-            className="flex-1 py-4 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 rounded-2xl font-bold text-white shadow-lg transition-transform active:scale-95"
+            className="flex-1 py-4 bg-gradient-to-r from-red-600 to-blue-600 hover:from-red-500 hover:to-blue-500 rounded-2xl font-bold text-white shadow-lg transition-transform active:scale-95"
           >
             저장했습니다
           </button>
@@ -2098,17 +2098,17 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
   const getWalletStyle = (type: string) => {
     switch (type) {
       case 'XLOT': return { bg: 'bg-gradient-to-br from-cyan-500 to-blue-500', text: 'text-white', icon: <ShieldCheck size={20} /> };
-      case 'METAMASK': return { bg: 'bg-orange-500/20', text: 'text-orange-500', icon: <span className="text-lg">🦊</span> };
+      case 'METAMASK': return { bg: 'bg-blue-500/20', text: 'text-blue-500', icon: <span className="text-lg">🦊</span> };
       case 'RABBY': return { bg: 'bg-blue-500/20', text: 'text-blue-500', icon: <span className="text-lg">🐰</span> };
       case 'PHANTOM': return { bg: 'bg-purple-500/20', text: 'text-purple-400', icon: <span className="text-lg">👻</span> };
       case 'UPBIT': return { bg: 'bg-indigo-500/20', text: 'text-indigo-400', icon: <span className="font-bold text-xs">Up</span> };
       case 'BINANCE': return { bg: 'bg-yellow-500/10', text: 'text-yellow-500', icon: <span className="text-lg">🟡</span> };
       case 'OKX_CEX': return { bg: 'bg-slate-700', text: 'text-white', icon: <span className="font-bold text-[10px]">OKX</span> };
       case 'SOLANA': return { bg: 'bg-green-500/20', text: 'text-green-500', icon: <span className="font-bold text-[10px]">SOL</span> };
-      case 'BITCOIN': return { bg: 'bg-orange-600/20', text: 'text-orange-600', icon: <span className="font-bold text-[10px]">BTC</span> };
+      case 'BITCOIN': return { bg: 'bg-blue-600/20', text: 'text-blue-600', icon: <span className="font-bold text-[10px]">BTC</span> };
       case 'TRON': return { bg: 'bg-red-500/20', text: 'text-red-500', icon: <span className="font-bold text-[10px]">TRX</span> };
       case 'OKX': return { bg: 'bg-slate-800', text: 'text-white', icon: <span className="font-bold text-[10px]">OKX</span> };
-      case 'SOLFLARE': return { bg: 'bg-orange-400/20', text: 'text-orange-400', icon: <span className="text-lg">☀️</span> };
+      case 'SOLFLARE': return { bg: 'bg-blue-400/20', text: 'text-blue-400', icon: <span className="text-lg">☀️</span> };
       default: return { bg: 'bg-slate-800', text: 'text-slate-400', icon: <Wallet size={20} /> };
     }
   };
@@ -2253,7 +2253,7 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
        }
        // BTC
        else if ((wallet.wallet_type === 'BITCOIN' || wallet.wallet_type === 'OKX') && wallet.addresses.btc) {
-           list.push({ key: 'BTC', addr: wallet.addresses.btc, color: 'text-orange-400', bg: 'bg-orange-500/10' });
+           list.push({ key: 'BTC', addr: wallet.addresses.btc, color: 'text-blue-400', bg: 'bg-blue-500/10' });
        }
        // Fallback for Manual EVM
        else if (wallet.addresses.evm) {
@@ -5310,7 +5310,7 @@ export function SwapPage() {
       {/* Action Button */}
       <div className="mt-4">
         {!canSwap && selectedWallet ? (
-          <div className="flex flex-col items-center justify-center gap-2 text-xs text-orange-400 bg-orange-500/10 p-6 rounded-2xl border border-orange-500/20 font-bold text-center">
+          <div className="flex flex-col items-center justify-center gap-2 text-xs text-blue-400 bg-blue-500/10 p-6 rounded-2xl border border-blue-500/20 font-bold text-center">
              <AlertCircle size={24} className="mb-2" />
              <p className="text-sm">스왑 미지원 지갑</p>
              <span className="opacity-80 font-normal">

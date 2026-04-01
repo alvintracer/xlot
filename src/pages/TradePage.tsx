@@ -309,17 +309,17 @@ export function TradePage({ onKycRequest }: TradePageProps) {
 
               {/* FX 목적 선택 */}
               {(needsFxGate || buyStep === 'fx') && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 space-y-2">
+                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 space-y-2">
                   <div className="flex items-center gap-1.5">
-                    <Info size={11} className="text-amber-400 shrink-0" />
-                    <p className="text-[10px] text-amber-300 font-bold">외국환거래법 — 거래 목적 필수</p>
+                    <Info size={11} className="text-cyan-400 shrink-0" />
+                    <p className="text-[10px] text-cyan-300 font-bold">외국환거래법 — 거래 목적 필수</p>
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
                     {FX_PURPOSE_OPTIONS.map(opt => (
                       <button key={opt} onClick={() => { setFxPurpose(opt); setBuyStep('idle'); }}
                         className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border transition-all text-left ${
                           fxPurpose === opt
-                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                            ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
                             : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'}`}>
                         {opt}
                       </button>
@@ -500,7 +500,7 @@ function PCAssetList({
 
                 {/* APY */}
                 <div>
-                  <p className={`text-xs font-black ${asset.fallbackApy > 0 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                  <p className={`text-xs font-black ${asset.fallbackApy > 0 ? 'text-emerald-400' : 'text-teal-400'}`}>
                     {formatApy(asset.fallbackApy)}
                   </p>
                   {asset.fallbackApy > 0 && (
@@ -518,8 +518,8 @@ function PCAssetList({
                       <div className="flex items-center gap-1 mt-0.5">
                         <div className={`w-1 h-1 rounded-full ${
                           liq.liquidityUsd >= 10_000_000 ? 'bg-emerald-400'
-                          : liq.liquidityUsd >= 1_000_000 ? 'bg-yellow-400'
-                          : 'bg-orange-400'
+                          : liq.liquidityUsd >= 1_000_000 ? 'bg-teal-400'
+                          : 'bg-blue-400'
                         }`} />
                         <p className="text-[9px] text-slate-600">TVL</p>
                       </div>

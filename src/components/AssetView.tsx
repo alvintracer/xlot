@@ -63,6 +63,40 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false);
   const currentDeviceId = getDeviceId(); 
 
+  // === Active Wallet State ===
+  const [activeWalletId, setActiveWalletId] = useState<string | null>(localStorage.getItem("xlot_active_wallet_id"));
+
+  useEffect(() => {
+    // 기본 선택 로직: 활성 지갑이 없으면 첫 SSS/MPC 지갑을 자동 선택
+    if (wallets.length > 0 && !activeWalletId && !localStorage.getItem("xlot_active_wallet_id")) {
+      const defaultWallet = wallets.find(w => w.wallet_type === 'XLOT_SSS' || w.wallet_type === 'XLOT') || wallets[0];
+      if (defaultWallet) {
+        setActiveWalletId(defaultWallet.id);
+        localStorage.setItem("xlot_active_wallet_id", defaultWallet.id);
+      }
+    }
+  }, [wallets, activeWalletId]);
+
+  useEffect(() => {
+    // 활성 지갑이 변경되면 익스텐션(background/inpage)이 알 수 있도록 local storage에 동기화
+    if (activeWalletId) {
+      localStorage.setItem("xlot_active_wallet_id", activeWalletId);
+      const wallet = wallets.find(w => w.id === activeWalletId);
+      
+      const chromeAny = (globalThis as any).chrome;
+      if (wallet && chromeAny?.storage?.local) {
+        const accounts = [];
+        if (wallet.addresses.evm) accounts.push(wallet.addresses.evm.toLowerCase());
+        
+        chromeAny.storage.local.set({
+          accounts,
+          xlot_active_wallet: wallet,
+          xlot_smart_address: smartAccount?.address || ''
+        });
+      }
+    }
+  }, [activeWalletId, wallets, smartAccount]);
+
   // === UI States ===
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedSlotIdForAdd, setSelectedSlotIdForAdd] = useState<string | null>(null);
@@ -213,18 +247,11 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
         getMyWallets(smartAccount.address),
         fetchCryptoPrices()
       ]);
-      // SSS 지갑이 있으면 AA(XLOT) 슬롯 숨김
-      // (AA는 user_id 역할만 하고 실제 자산 지갑이 아님)
-      const hasSSSWallet = list.some(w => w.wallet_type === 'XLOT_SSS');
-      const filtered = hasSSSWallet
-        ? list.filter(w => w.wallet_type !== 'XLOT')
-        : list;
-
-      // SSS 지갑 맨 앞으로
+      // SSS 지갑 맨 앞으로, 그 다음 MPC (XLOT) 나오게 정렬
       const sorted = [
-        ...filtered.filter(w => w.wallet_type === 'XLOT_SSS'),
-        ...filtered.filter(w => w.wallet_type === 'XLOT'),
-        ...filtered.filter(w => !['XLOT_SSS', 'XLOT'].includes(w.wallet_type)),
+        ...list.filter(w => w.wallet_type === 'XLOT_SSS'),
+        ...list.filter(w => w.wallet_type === 'XLOT'),
+        ...list.filter(w => !['XLOT_SSS', 'XLOT'].includes(w.wallet_type)),
       ];
       setWallets(sorted);
       setPrices(priceData);
@@ -649,35 +676,16 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
          {/* Header UI */}
          <div className="flex justify-between items-start mb-6 relative">
             <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 mt-0.5">xLOT</h1>
-            <div className="absolute left-1/2 -translate-x-1/2 top-0 z-[45]" ref={dropdownRef}>
-               <button onClick={() => setIsDeviceMenuOpen(!isDeviceMenuOpen)} className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 hover:bg-slate-700 transition-all cursor-pointer group shadow-sm">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
-                  <span className="text-[10px] font-bold text-slate-300 whitespace-nowrap">
-                     {currentDeviceName ? (currentDeviceName.length > 7 ? currentDeviceName.slice(0, 7) + "..." : currentDeviceName) : "기기 설정 필요"}
-                  </span>
-                  <MoreVertical size={12} className="text-slate-500 group-hover:text-white shrink-0" />
-               </button>
-                  {isDeviceMenuOpen && (
-                     <div className="absolute top-full left-0 mt-2 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-xl z-20 p-2 animate-fade-in-up">
-                        <p className="text-[10px] font-bold text-slate-500 mb-2 px-2">연결된 기기</p>
-                        {allDevices.length <= 1 ? <p className="text-xs text-slate-600 px-2 pb-1">다른 기기 없음</p> : allDevices.filter(d => d.device_uuid !== currentDeviceId).map(d => (
-                           <div key={d.id} className="flex items-center gap-2 p-2 hover:bg-slate-800 rounded-lg cursor-pointer">
-                              <Monitor size={12} className="text-slate-400"/>
-                              <div>
-                                 <p className="text-xs font-bold text-slate-300">{d.nickname}</p>
-                                 <p className="text-[9px] text-slate-600">{new Date(d.last_active).toLocaleDateString()}</p>
-                              </div>
-                           </div>
-                        ))}
-                        <div className="border-t border-slate-800 mt-1 pt-1">
-                           <button onClick={() => { setIsDeviceNameModalOpen(true); setIsDeviceMenuOpen(false); }} className="w-full text-left text-[10px] text-cyan-400 hover:text-cyan-300 p-2 flex items-center gap-1">
-                              <Laptop size={10} /> 이 기기 이름 변경
-                           </button>
-                        </div>
-                     </div>
-                  )}
-            </div>
-            <ProfileHeader />
+            
+            <ProfileHeader 
+              wallets={wallets}
+              activeWalletId={activeWalletId}
+              onSelectActiveWallet={setActiveWalletId}
+              allDevices={allDevices}
+              currentDeviceName={currentDeviceName}
+              currentDeviceId={currentDeviceId}
+              onDeviceRename={() => setIsDeviceNameModalOpen(true)}
+            />
          </div>
 
          {/* ✨ [수정] Token 탭 제거 (KRW | USD 2개만 유지) */}
@@ -759,8 +767,9 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                 // ✨ [수정 1] 카드 전체를 클릭하면 상세 페이지로 이동
                 onClick={() => setSelectedWallet(wallet)}
                 // ✨ [수정 2] 마우스를 올렸을 때 클릭 가능하다는 표시 (cursor-pointer)
-                className={`cursor-pointer relative p-5 rounded-2xl border shadow-lg group transition-all 
-                  ${wallet.wallet_type === 'XLOT' ? 'bg-slate-900 border-cyan-500/30' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}
+                className={`cursor-pointer relative p-5 rounded-2xl border shadow-lg group transition-all duration-300
+                  ${wallet.wallet_type === 'XLOT' ? 'bg-slate-900' : 'bg-slate-900'}
+                  ${wallet.id === activeWalletId ? 'border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400/30' : 'border-slate-800 hover:border-slate-700 hover:shadow-xl'}
                   ${isMenuOpen ? 'z-50' : 'z-0'} 
                 `}
               >
@@ -772,8 +781,14 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                      </div>
                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                           <h3 className={`font-bold text-sm truncate ${wallet.wallet_type === 'XLOT' ? 'text-cyan-400' : 'text-white'}`}>
+                           <h3 className={`font-bold text-sm truncate flex items-center gap-2 ${wallet.wallet_type === 'XLOT' ? 'text-cyan-400' : 'text-white'}`}>
                              {wallet.label}
+                             {wallet.wallet_type === 'XLOT' && (
+                               <span className="px-1.5 py-0.5 rounded-md text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">MPC</span>
+                             )}
+                             {wallet.wallet_type === 'XLOT_SSS' && (
+                               <span className="px-1.5 py-0.5 rounded-md text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20">SSS</span>
+                             )}
                            </h3>
                            
                            {/* 상태 버튼 */}

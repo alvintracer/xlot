@@ -311,7 +311,7 @@ export function KYCRegistrationModal({ onClose, onSuccess, defaultMode }: Props)
                   <p className="font-bold text-slate-400">2가지 비밀번호 설정</p>
                   <p>① <span className="text-white">로컬 PIN</span> — 이 기기에서 KYC 정보 잠금 해제용</p>
                   <p>② <span className="text-white">Vault 비밀번호</span> — 다른 기기로 복원할 때 사용 (기기 동기화 Vault와 동일)</p>
-                  <p className="text-amber-400 mt-1">⚠️ 두 비밀번호를 잊으면 KYC 정보를 복구할 수 없습니다.</p>
+                  <p className="text-cyan-400 mt-1">⚠️ 두 비밀번호를 잊으면 KYC 정보를 복구할 수 없습니다.</p>
                 </div>
                 <button onClick={() => setShowKeypad('pin')}
                   className="w-full p-4 bg-slate-900 border border-slate-800 rounded-xl text-left hover:border-emerald-500/40 transition-all flex items-center justify-between">

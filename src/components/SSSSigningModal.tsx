@@ -28,6 +28,8 @@ export interface SSSSigningResult {
 
 interface Props {
   walletAddress: string;
+  /** 익스텐션 서명 팝업에서 useActiveAccount()가 null일 때 사용할 스마트 계정 주소 */
+  smartAccountAddress?: string;
   purpose:       string;
   onSigned:      (result: SSSSigningResult) => void;
   onCancel:      () => void;
@@ -36,8 +38,10 @@ interface Props {
 type SignPath = 'A+B' | 'A+C' | 'B+C';
 type Step = 'select' | 'input' | 'otp' | 'unlocking' | 'error';
 
-export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: Props) {
+export function SSSSigningModal({ walletAddress, smartAccountAddress, purpose, onSigned, onCancel }: Props) {
   const smartAccount = useActiveAccount();
+  // 익스텐션 서명 팝업에서 AutoConnect 가 아직 완료되지 않았을 때 fallback
+  const userId = smartAccount?.address ?? smartAccountAddress ?? '';
 
   const [step, setStep]         = useState<Step>('select');
   const [path, setPath]         = useState<SignPath>('A+B');
@@ -53,7 +57,7 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
   const [error, setError]       = useState('');
 
   const pathInfo = {
-    'A+B': { label: '비밀번호 + 휴대폰', icon: <Lock size={16} className="text-amber-400"/> },
+    'A+B': { label: '비밀번호 + 휴대폰', icon: <Lock size={16} className="text-cyan-400"/> },
     'A+C': { label: '비밀번호 + 이메일', icon: <Mail size={16} className="text-cyan-400"/> },
     'B+C': { label: '휴대폰 + 이메일',   icon: <Phone size={16} className="text-emerald-400"/> },
   };
@@ -77,7 +81,7 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
   const handleVerifyAndSign = async () => {
     const otp = otpTarget === 'phone' ? phoneOtp : emailOtp;
     if (otp.length !== 6) { setError('6자리 OTP 입력'); return; }
-    if (!smartAccount) { setError('계정 연결이 필요합니다'); return; }
+    if (!userId) { setError('계정 연결이 필요합니다'); return; }
     setIsLoading(true); setError('');
     setStep('unlocking');
 
@@ -117,8 +121,8 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
   };
 
   const doSign = async (latestKey: string) => {
-    if (!smartAccount) return;
-    const vault = await loadVaultFromSupabase(smartAccount.address, walletAddress);
+    if (!userId) return;
+    const vault = await loadVaultFromSupabase(userId, walletAddress);
     if (!vault) throw new Error('Vault를 찾을 수 없습니다');
 
     let shareX: any, shareY: any;
@@ -160,8 +164,8 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
         {/* 헤더 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-              <Lock size={18} className="text-amber-400" />
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
+              <Lock size={18} className="text-cyan-400" />
             </div>
             <div>
               <p className="text-sm font-black text-white">서명 인증</p>
@@ -188,7 +192,7 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
             <p className="text-xs text-slate-400">인증 방법 선택</p>
             {(Object.entries(pathInfo) as [SignPath, any][]).map(([key, info]) => (
               <button key={key} onClick={() => { setPath(key); setStep('input'); }}
-                className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 text-left hover:border-amber-500/40 transition-all flex items-center gap-3">
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 text-left hover:border-cyan-500/40 transition-all flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
                   {info.icon}
                 </div>
@@ -210,7 +214,7 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
                     onChange={e => setPassword(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleInputNext()}
                     autoFocus
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500/50 pr-12"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50 pr-12"
                     placeholder="비밀번호 입력" />
                   <button onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
                     {showPw ? <EyeOff size={16}/> : <Eye size={16}/>}
@@ -228,7 +232,7 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
                   <div className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-sm text-slate-400 shrink-0">+82</div>
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g,''))}
                     disabled={path === 'B+C' && !!phoneToken}
-                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500/50 disabled:opacity-50"
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50 disabled:opacity-50"
                     placeholder="01012345678" maxLength={11} />
                 </div>
               </div>
@@ -238,7 +242,7 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
               <div>
                 <label className="text-xs text-slate-400 font-bold mb-1 block">이메일</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500/50"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50"
                   placeholder="your@email.com" />
               </div>
             )}
@@ -246,7 +250,7 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
             {error && <p className="text-xs text-red-400">{error}</p>}
 
             <button onClick={handleInputNext} disabled={isLoading}
-              className="w-full py-3.5 rounded-2xl font-black text-sm text-white bg-gradient-to-r from-amber-500 to-orange-500 disabled:opacity-40">
+              className="w-full py-3.5 rounded-2xl font-black text-sm text-white bg-gradient-to-r from-cyan-500 to-blue-500 disabled:opacity-40">
               {isLoading ? <span className="flex items-center justify-center gap-2"><Loader2 size={14} className="animate-spin"/>전송 중...</span> : 'OTP 전송'}
             </button>
 
@@ -266,12 +270,12 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
               onChange={e => otpTarget === 'phone'
                 ? setPhoneOtp(e.target.value.slice(0,6))
                 : setEmailOtp(e.target.value.slice(0,6))}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-4 text-2xl font-black text-white text-center outline-none focus:border-amber-500/50 tracking-widest"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-4 text-2xl font-black text-white text-center outline-none focus:border-cyan-500/50 tracking-widest"
               placeholder="000000" autoFocus />
             {error && <p className="text-xs text-red-400">{error}</p>}
             <button onClick={handleVerifyAndSign}
               disabled={isLoading || (otpTarget === 'phone' ? phoneOtp : emailOtp).length !== 6}
-              className="w-full py-3.5 rounded-2xl font-black text-sm text-white bg-gradient-to-r from-amber-500 to-orange-500 disabled:opacity-40">
+              className="w-full py-3.5 rounded-2xl font-black text-sm text-white bg-gradient-to-r from-cyan-500 to-blue-500 disabled:opacity-40">
               {isLoading ? <span className="flex items-center justify-center gap-2"><Loader2 size={14} className="animate-spin"/>인증 중...</span> : '잠금 해제'}
             </button>
           </div>
@@ -280,7 +284,7 @@ export function SSSSigningModal({ walletAddress, purpose, onSigned, onCancel }: 
         {/* ══ 잠금 해제 중 ══ */}
         {step === 'unlocking' && (
           <div className="flex flex-col items-center gap-4 py-8">
-            <Loader2 size={32} className="animate-spin text-amber-400" />
+            <Loader2 size={32} className="animate-spin text-cyan-400" />
             <p className="text-sm font-black text-white">잠금 해제 중...</p>
             <p className="text-xs text-slate-500">Share 복원 → 서명 준비</p>
           </div>

@@ -180,9 +180,9 @@ export function UpbitDepositModal({ wallet, onClose }: Props) {
                                         </div>
                                     </div>
                                     {activeAddress.secondary_address && (
-                                        <div className="bg-amber-500/5 border border-amber-500/20 p-3 rounded-2xl flex justify-between items-center text-xs text-amber-500 font-medium">
+                                        <div className="bg-cyan-500/5 border border-cyan-500/20 p-3 rounded-2xl flex justify-between items-center text-xs text-cyan-500 font-medium">
                                             <span>Destination Tag: {activeAddress.secondary_address}</span>
-                                            <button onClick={() => navigator.clipboard.writeText(activeAddress.secondary_address)} className="p-1 hover:bg-amber-500/10 rounded"><Copy size={14}/></button>
+                                            <button onClick={() => navigator.clipboard.writeText(activeAddress.secondary_address)} className="p-1 hover:bg-cyan-500/10 rounded"><Copy size={14}/></button>
                                         </div>
                                     )}
                                 </div>

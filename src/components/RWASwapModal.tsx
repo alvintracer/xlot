@@ -390,17 +390,17 @@ function InputStep({
 
       {/* FX법 게이트 */}
       {(needsFxGate || showFxForm) && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 space-y-3">
+        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-2xl p-4 space-y-3">
           <div className="flex items-start gap-2">
-            <Info size={14} className="text-amber-400 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-300 font-bold">외국환거래법 제18조 — $10,000 이상 거래 시 목적 입력 필수</p>
+            <Info size={14} className="text-cyan-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-cyan-300 font-bold">외국환거래법 제18조 — $10,000 이상 거래 시 목적 입력 필수</p>
           </div>
           <div className="space-y-2">
             {FX_PURPOSE_OPTIONS.map(opt => (
               <button key={opt} onClick={() => setFxPurpose(opt)}
                 className={`w-full text-left text-xs font-bold px-3 py-2.5 rounded-xl border transition-all flex items-center justify-between
                   ${fxPurpose === opt
-                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                    ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
                     : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'}`}>
                 {opt}
                 {fxPurpose === opt && <Check size={12} />}
@@ -477,7 +477,7 @@ function RoutePanel({ routeResult, isLoading }: {
   // price impact 색상
   const impactColor = !routeResult.priceImpactPct ? 'text-slate-400'
     : routeResult.priceImpactPct < 0.1  ? 'text-emerald-400'
-    : routeResult.priceImpactPct < 0.5  ? 'text-yellow-400'
+    : routeResult.priceImpactPct < 0.5  ? 'text-teal-400'
     : 'text-red-400';
 
   return (
@@ -569,7 +569,7 @@ function RoutePanel({ routeResult, isLoading }: {
           <div className={`flex items-center gap-2 rounded-xl px-3 py-1.5 ${
             routeResult.liquidityUsd >= 1_000_000
               ? 'bg-emerald-500/10 border border-emerald-500/20'
-              : 'bg-orange-500/10 border border-orange-500/20'
+              : 'bg-blue-500/10 border border-blue-500/20'
           }`}>
             <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${liqLevel.color.replace('text-', 'bg-')}`} />
             <p className="text-[10px] text-slate-400">

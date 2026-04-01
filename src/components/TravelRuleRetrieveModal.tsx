@@ -287,9 +287,9 @@ export function TravelRuleRetrieveModal({ onClose, prefillRefId }: Props) {
                     <p className="text-xs font-bold text-slate-400">서명할 메시지</p>
                     <pre className="text-[10px] text-slate-300 font-mono whitespace-pre-wrap break-all leading-relaxed">{challenge}</pre>
                   </div>
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2">
-                    <AlertCircle size={13} className="text-amber-400 mt-0.5 shrink-0"/>
-                    <p className="text-[10px] text-amber-300/80">개인키 전송 없음 · 자산 이동 없음 · 신원 확인 목적만</p>
+                  <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3 flex items-start gap-2">
+                    <AlertCircle size={13} className="text-cyan-400 mt-0.5 shrink-0"/>
+                    <p className="text-[10px] text-cyan-300/80">개인키 전송 없음 · 자산 이동 없음 · 신원 확인 목적만</p>
                   </div>
                   {error && <p className="text-xs text-red-400">{error}</p>}
                   <button onClick={handleSign} disabled={isLoading}
@@ -413,8 +413,8 @@ export function TravelRuleRetrieveModal({ onClose, prefillRefId }: Props) {
 
                       <button onClick={() => handlePrint('exchange')}
                         className="flex items-center gap-3 p-3 bg-slate-900 border border-slate-800 rounded-xl hover:border-slate-700 transition-all">
-                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
-                          <ShieldCheck size={14} className="text-amber-400"/>
+                        <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                          <ShieldCheck size={14} className="text-cyan-400"/>
                         </div>
                         <div className="text-left">
                           <p className="text-xs font-bold text-white">거래소 소명용 PDF</p>
@@ -551,7 +551,7 @@ export function TravelRuleRetrieveModal({ onClose, prefillRefId }: Props) {
                                       const w = window.open('', '_blank', 'width=800,height=900');
                                       if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500); }
                                     }}
-                                    className="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 flex items-center justify-center gap-1">
+                                    className="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center gap-1">
                                     <ShieldCheck size={10}/> 소명PDF
                                   </button>
                                 </div>

@@ -53,7 +53,7 @@ export function XLOTWalletRecoverModal({ onClose, onSuccess }: Props) {
   const [otpTarget, setOtpTarget]       = useState<'phone'|'email'>('phone');
 
   const pathInfo = {
-    'A+B': { title: '비밀번호 + 휴대폰', desc: '기기를 분실했을 때', icon: <Lock size={18} className="text-amber-400"/>, needs: ['비밀번호','휴대폰 OTP'] },
+    'A+B': { title: '비밀번호 + 휴대폰', desc: '기기를 분실했을 때', icon: <Lock size={18} className="text-cyan-400"/>, needs: ['비밀번호','휴대폰 OTP'] },
     'A+C': { title: '비밀번호 + 이메일', desc: '휴대폰을 변경했을 때', icon: <Mail size={18} className="text-cyan-400"/>,  needs: ['비밀번호','이메일 OTP'] },
     'B+C': { title: '휴대폰 + 이메일',  desc: '비밀번호를 잊었을 때', icon: <Phone size={18} className="text-emerald-400"/>, needs: ['휴대폰 OTP','이메일 OTP'] },
   };
@@ -194,8 +194,8 @@ export function XLOTWalletRecoverModal({ onClose, onSuccess }: Props) {
         {/* 헤더 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-              <KeyRound size={18} className="text-amber-400" />
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
+              <KeyRound size={18} className="text-cyan-400" />
             </div>
             <div>
               <p className="text-sm font-black text-white">지갑 복구</p>
@@ -265,7 +265,7 @@ export function XLOTWalletRecoverModal({ onClose, onSuccess }: Props) {
               <div>
                 <label className="text-xs text-slate-400 font-bold mb-1 block">비밀번호</label>
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500/50"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50"
                   placeholder="지갑 생성 시 설정한 비밀번호" />
               </div>
             )}
@@ -279,7 +279,7 @@ export function XLOTWalletRecoverModal({ onClose, onSuccess }: Props) {
                   <div className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-sm text-slate-400 shrink-0">+82</div>
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g,''))}
                     disabled={path === 'B+C' && !!phoneToken}
-                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500/50 disabled:opacity-50"
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50 disabled:opacity-50"
                     placeholder="01012345678" maxLength={11} />
                 </div>
               </div>
@@ -289,7 +289,7 @@ export function XLOTWalletRecoverModal({ onClose, onSuccess }: Props) {
               <div>
                 <label className="text-xs text-slate-400 font-bold mb-1 block">이메일</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500/50"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50"
                   placeholder="your@email.com" />
               </div>
             )}
@@ -297,7 +297,7 @@ export function XLOTWalletRecoverModal({ onClose, onSuccess }: Props) {
             {error && <p className="text-xs text-red-400">{error}</p>}
 
             <button onClick={handleInputNext} disabled={isLoading || !inputValid()}
-              className="w-full py-4 rounded-2xl font-black text-base text-white bg-gradient-to-r from-amber-500 to-orange-500 disabled:opacity-40 transition-all">
+              className="w-full py-4 rounded-2xl font-black text-base text-white bg-gradient-to-r from-cyan-500 to-blue-500 disabled:opacity-40 transition-all">
               {isLoading
                 ? <span className="flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin"/>처리 중...</span>
                 : 'OTP 전송'}
@@ -316,12 +316,12 @@ export function XLOTWalletRecoverModal({ onClose, onSuccess }: Props) {
               onChange={e => otpTarget === 'phone'
                 ? setPhoneOtp(e.target.value.slice(0,6))
                 : setEmailOtp(e.target.value.slice(0,6))}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-4 text-2xl font-black text-white text-center outline-none focus:border-amber-500/50 tracking-widest"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-4 text-2xl font-black text-white text-center outline-none focus:border-cyan-500/50 tracking-widest"
               placeholder="000000" />
             {error && <p className="text-xs text-red-400">{error}</p>}
             <button onClick={handleVerifyOtp}
               disabled={isLoading || (otpTarget === 'phone' ? phoneOtp : emailOtp).length !== 6}
-              className="w-full py-4 rounded-2xl font-black text-base text-white bg-gradient-to-r from-amber-500 to-orange-500 disabled:opacity-40">
+              className="w-full py-4 rounded-2xl font-black text-base text-white bg-gradient-to-r from-cyan-500 to-blue-500 disabled:opacity-40">
               {isLoading
                 ? <span className="flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin"/>인증 중...</span>
                 : '인증 확인'}
@@ -332,7 +332,7 @@ export function XLOTWalletRecoverModal({ onClose, onSuccess }: Props) {
         {/* ══ 복구 중 ══ */}
         {step === 'recovering' && (
           <div className="flex flex-col items-center gap-4 py-10">
-            <Loader2 size={36} className="animate-spin text-amber-400" />
+            <Loader2 size={36} className="animate-spin text-cyan-400" />
             <p className="text-sm font-black text-white">복구 중...</p>
             <p className="text-xs text-slate-500">Share 결합 → Seed 복원 → 주소 검증</p>
           </div>

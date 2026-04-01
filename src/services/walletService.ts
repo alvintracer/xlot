@@ -354,10 +354,12 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
             if (wallet.addresses.trx) {
                 try {
                     const tron = getTronWeb();
+                    tron.setAddress(wallet.addresses.trx);
+
                     const sun = await tron.trx.getBalance(wallet.addresses.trx);
                     const trxVal = sun / 1000000;
                     wallet.balances.trx = trxVal;
-                     if (trxVal > 0) {
+                    if (trxVal > 0) {
                         wallet.assets.push({
                             symbol: "TRX",
                             name: "Tron",
@@ -369,7 +371,42 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                             isNative: true
                         });
                     }
-                } catch (e) { wallet.balances.trx = 0; }
+
+                    // TRC20 USDT
+                    try {
+                        const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+                        const contract = await tron.contract().at(USDT_CONTRACT);
+                        const rawBalance = await contract.balanceOf(wallet.addresses.trx).call();
+                        const usdtVal = Number(rawBalance.toString()) / 1000000; // USDT has 6 decimals
+
+                        if (usdtVal > 0) {
+                            let usdtPrice = 1;
+                            let usdtChange = 0;
+                            const pTokens = prices?.tokens as any;
+                            if (pTokens && pTokens['usdt']) {
+                                usdtPrice = pTokens['usdt'].usd;
+                                usdtChange = pTokens['usdt'].change;
+                            }
+
+                            wallet.assets.push({
+                                symbol: "USDT",
+                                name: "Tether USD",
+                                balance: usdtVal,
+                                price: usdtPrice,
+                                value: usdtVal * usdtPrice,
+                                change: usdtChange,
+                                network: "Tron",
+                                isNative: false,
+                                tokenAddress: USDT_CONTRACT
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('TRC20 USDT fetch error:', e);
+                    }
+                } catch (e) { 
+                    wallet.balances.trx = 0; 
+                    console.warn('Tron fetch error:', e);
+                }
             }
 
             // F. 총 가치 계산
@@ -511,6 +548,20 @@ export async function addTronWallet(userId: string, address: string, label: stri
     await supabase.from('user_wallets').insert({
         user_id: userId, address_trx: address, label, wallet_type: walletType, device_uuid: getDeviceId()
     });
+}
+
+// ── 익스텐션용: SSS EVM 주소만 경량 조회 (잔액/가격 없이) ─────────
+export async function getSSSEvmAddresses(userId: string): Promise<{ id: string; label: string; evm: string }[]> {
+    const { data, error } = await supabase
+        .from('user_wallets')
+        .select('id, label, address')
+        .eq('user_id', userId)
+        .eq('wallet_type', 'XLOT_SSS')
+        .order('created_at', { ascending: true });
+    if (error || !data) return [];
+    return data
+        .filter((row: any) => !!row.address)
+        .map((row: any) => ({ id: row.id, label: row.label, evm: row.address }));
 }
 
 export async function deleteWallet(id: string) {

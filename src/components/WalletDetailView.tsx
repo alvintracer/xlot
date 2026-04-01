@@ -37,7 +37,7 @@ interface Props {
 const CHAIN_CONFIG: Record<string, { label: string; color: string; bg: string; explorer: string }> = {
   evm: { label: 'EVM',  color: 'text-cyan-400',   bg: 'bg-cyan-500/10',   explorer: 'https://etherscan.io/address/' },
   sol: { label: 'SOL',  color: 'text-green-400',  bg: 'bg-green-500/10',  explorer: 'https://solscan.io/account/' },
-  btc: { label: 'BTC',  color: 'text-orange-400', bg: 'bg-orange-500/10', explorer: 'https://mempool.space/address/' },
+  btc: { label: 'BTC',  color: 'text-blue-400', bg: 'bg-blue-500/10', explorer: 'https://mempool.space/address/' },
   trx: { label: 'TRX',  color: 'text-red-400',    bg: 'bg-red-500/10',    explorer: 'https://tronscan.org/#/address/' },
 };
 
@@ -182,13 +182,13 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
                       onClick={() => { setShowExchangeConnect(true); setIsMenuOpen(false); }} 
                       className="w-full px-4 py-3 text-left text-xs font-bold text-cyan-400 hover:bg-cyan-500/10 flex items-center gap-2 border-b border-slate-700"
                     >
-                      🏦 거래소 연동
+                      거래소 연동
                     </button>
                     <button 
                       onClick={() => { setIsSssExportModalOpen(true); setIsMenuOpen(false); }} 
-                      className="w-full px-4 py-3 text-left text-xs font-bold text-amber-400 hover:bg-amber-500/10 flex items-center gap-2"
+                      className="w-full px-4 py-3 text-left text-xs font-bold text-cyan-400 hover:bg-cyan-500/10 flex items-center gap-2"
                     >
-                      <Key size={14} className="text-amber-400"/> 비밀 구문 추출
+                      <Key size={14} className="text-cyan-400"/> 비밀 구문 추출
                     </button>
                   </div>
                 </>
@@ -340,7 +340,7 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
                           ${asset.symbol === 'ETH' ? 'bg-slate-700 text-white' : 
                             asset.symbol === 'POL' ? 'bg-purple-500/20 text-purple-400' :
                             asset.symbol === 'SOL' ? 'bg-green-500/20 text-green-400' : 
-                            asset.symbol === 'BTC' ? 'bg-orange-500/20 text-orange-500' : 
+                            asset.symbol === 'BTC' ? 'bg-blue-500/20 text-blue-500' : 
                             asset.symbol === 'TRX' ? 'bg-red-500/20 text-red-500' : 
                             asset.symbol === 'USDT' || asset.symbol === 'USDC' ? 'bg-emerald-500/20 text-emerald-500' :
                             'bg-cyan-500/10 text-cyan-500 border border-cyan-500/20'}`}>
@@ -433,7 +433,7 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
                       <p className="text-[10px] text-slate-600 font-mono">
                         {new Date(item.timestamp * 1000).toLocaleDateString()}
                         {isCex && (
-                          <span className={`ml-1 ${item.status === 'SUCCESS' ? 'text-green-500' : 'text-yellow-500'}`}>
+                          <span className={`ml-1 ${item.status === 'SUCCESS' ? 'text-green-500' : 'text-teal-500'}`}>
                             · {item.status}
                           </span>
                         )}

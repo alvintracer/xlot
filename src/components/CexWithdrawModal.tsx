@@ -223,7 +223,7 @@ export function CexWithdrawModal({ sourceWallet, targetAddress, targetNetwork, o
                         {addr.wallet_type && <span className="text-[10px] text-slate-500">{addr.wallet_type}</span>}
                       </div>
                       <div className="text-sm text-white font-mono break-all mb-1">{addr.withdraw_address}</div>
-                      {addr.secondary_address && <div className="text-[10px] text-amber-500">Tag: {addr.secondary_address}</div>}
+                      {addr.secondary_address && <div className="text-[10px] text-cyan-500">Tag: {addr.secondary_address}</div>}
                     </button>
                   ))}
                 </div>

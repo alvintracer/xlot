@@ -682,10 +682,10 @@ export function SendModal({ onClose }: { onClose: () => void }) {
 
               {/* 자산별 특수 안내 (USDT EVM 제한, Tron JIT 등) */}
               {selectedAsset?.symbol === 'USDT' && ['Ethereum', 'Polygon', 'Sepolia', 'Amoy', 'Base', 'Arbitrum'].includes(selectedAsset.network) && (
-                  <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded-xl flex items-start gap-2 mt-2 animate-fade-in-up">
-                      <AlertTriangle size={16} className="text-orange-400 mt-0.5 shrink-0" />
+                  <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-xl flex items-start gap-2 mt-2 animate-fade-in-up">
+                      <AlertTriangle size={16} className="text-blue-400 mt-0.5 shrink-0" />
                       <div>
-                          <p className="text-orange-400 text-xs font-bold mb-0.5">EVM 계열 USDT 전송 제한 ⚠️</p>
+                          <p className="text-blue-400 text-xs font-bold mb-0.5">EVM 계열 USDT 전송 제한 ⚠️</p>
                           <p className="text-slate-300 text-[11px] leading-tight">
                               수수료 대납 기능(Permit) 미지원 토큰입니다. 전송 시 네트워크 <b>네이티브 코인(ETH, POL 등)이 가스비로 반드시 필요</b>합니다. 가스비 통제가 쉬운 <b>트론(Tron) 사용을 권장</b>합니다.
                           </p>

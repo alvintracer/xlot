@@ -108,8 +108,8 @@ export function AddAddressModal({ slotId, onClose, onSuccess }: Props) {
 
           {(tab === 'ALL' || tab === 'BTC') && (
             <div>
-               <label className="text-xs font-bold text-orange-500 mb-1 block ml-1">Bitcoin</label>
-               <input value={inputs.btc} onChange={(e) => handleChange('btc', e.target.value)} placeholder="1, 3, bc1..." className="w-full bg-slate-950 text-white p-4 rounded-2xl outline-none border border-slate-800 focus:border-orange-500 text-sm font-mono" />
+               <label className="text-xs font-bold text-blue-500 mb-1 block ml-1">Bitcoin</label>
+               <input value={inputs.btc} onChange={(e) => handleChange('btc', e.target.value)} placeholder="1, 3, bc1..." className="w-full bg-slate-950 text-white p-4 rounded-2xl outline-none border border-slate-800 focus:border-blue-500 text-sm font-mono" />
             </div>
           )}
 

@@ -202,7 +202,7 @@ export function ExchangeConnectModal({ walletAddress, walletLabel, onClose }: Pr
                       <p className="text-xs text-slate-300 flex items-start gap-2">
                         <span className="text-blue-400 font-bold shrink-0">②</span> 거래소 PC 웹 화면에서 지갑 등록 시 <b>"메타마스크(MetaMask)"</b> 연결을 선택하세요.
                       </p>
-                      <p className="text-[11px] text-amber-400/80 mt-2 flex items-start gap-2 p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                      <p className="text-[11px] text-cyan-400/80 mt-2 flex items-start gap-2 p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
                         <ShieldAlert size={12} className="shrink-0 mt-0.5" /> 자산 전송은 불가능하며, 오직 거래소 본인인증(개인지갑 등록)을 위한 서명만 가능합니다.
                       </p>
                     </div>
@@ -241,8 +241,8 @@ export function ExchangeConnectModal({ walletAddress, walletLabel, onClose }: Pr
                       <span className="text-xs font-black text-emerald-400">window.ethereum 연결됨</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400">
-                      <Timer size={12} className="text-amber-400" />
-                      <span className={remaining < 60 ? 'text-red-400' : 'text-amber-400'}>
+                      <Timer size={12} className="text-cyan-400" />
+                      <span className={remaining < 60 ? 'text-red-400' : 'text-cyan-400'}>
                         {mm}:{ss}
                       </span>
                     </div>

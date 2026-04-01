@@ -88,7 +88,7 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
     }
   }, [smartAccount, step, activeWallet]);
 
-  const strengthColors = ['bg-red-500','bg-orange-500','bg-yellow-500','bg-emerald-500','bg-emerald-500'];
+  const strengthColors = ['bg-red-500','bg-blue-500','bg-teal-500','bg-emerald-500','bg-emerald-500'];
   const strengthLabels = ['매우 약함','약함','보통','강함','매우 강함'];
 
   // ── 진행 단계 표시용 ─────────────────────────────────────
@@ -272,7 +272,7 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
                       <div key={i} className={`flex-1 h-1 rounded-full ${i < pwCheck.score ? strengthColors[pwCheck.score] : 'bg-slate-800'}`} />
                     ))}
                   </div>
-                  <p className={`text-[10px] ${pwCheck.valid ? 'text-emerald-400' : 'text-orange-400'}`}>
+                  <p className={`text-[10px] ${pwCheck.valid ? 'text-emerald-400' : 'text-blue-400'}`}>
                     {strengthLabels[pwCheck.score]} — {pwCheck.feedback}
                   </p>
                 </div>
@@ -291,8 +291,8 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
               )}
             </div>
 
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-              <p className="text-[10px] text-amber-300 leading-relaxed">
+            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3">
+              <p className="text-[10px] text-cyan-300 leading-relaxed">
                 ⚠️ 비밀번호는 xLOT 서버에 저장되지 않습니다. 분실 시 휴대폰 + 이메일로 복구 가능합니다.
               </p>
             </div>
@@ -417,9 +417,9 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
                 복구 시 이 이메일로 OTP가 발송됩니다. 계정 연결 이메일과 달라도 됩니다.
               </p>
             </div>
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2">
-              <AlertCircle size={13} className="text-amber-400 mt-0.5 shrink-0" />
-              <p className="text-[10px] text-amber-300/80 leading-relaxed">
+            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3 flex items-start gap-2">
+              <AlertCircle size={13} className="text-cyan-400 mt-0.5 shrink-0" />
+              <p className="text-[10px] text-cyan-300/80 leading-relaxed">
                 Apple Private Relay 주소(@privaterelay.appleid.com)는 OTP 수신이 안 될 수 있어요.
                 실제 이메일 주소를 입력해 주세요.
               </p>
@@ -473,11 +473,11 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
         {/* ══ STEP 6: 니모닉 확인 ══ */}
         {step === 'mnemonic' && (
           <div className="space-y-4">
-            <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
-              <AlertCircle size={14} className="text-amber-400 mt-0.5 shrink-0" />
+            <div className="flex items-start gap-2 bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3">
+              <AlertCircle size={14} className="text-cyan-400 mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs font-black text-amber-300">복구 니모닉 (선택 백업)</p>
-                <p className="text-[10px] text-amber-200/70 mt-0.5">
+                <p className="text-xs font-black text-cyan-300">복구 니모닉 (선택 백업)</p>
+                <p className="text-[10px] text-cyan-200/70 mt-0.5">
                   비밀번호+휴대폰+이메일 중 2개로 복구 가능하지만, 추가 백업이 필요하다면 지금 안전한 곳에 기록하세요.
                 </p>
               </div>

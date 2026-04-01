@@ -37,7 +37,7 @@ interface MarketAsset {
 
 const MARKET_ASSETS: MarketAsset[] = [
   { symbol: 'ETH',  name: 'Ethereum', color: 'cyan',   tokenAddress: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', decimals: 18, chainId: 1 },
-  { symbol: 'BTC',  name: 'Bitcoin',  color: 'orange', tokenAddress: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', decimals: 8,  chainId: 1 },
+  { symbol: 'BTC',  name: 'Bitcoin',  color: 'blue', tokenAddress: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', decimals: 8,  chainId: 1 },
   { symbol: 'SOL',  name: 'Solana',   color: 'purple', tokenAddress: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', decimals: 9,  chainId: 1 },
   { symbol: 'POL',  name: 'Polygon',  color: 'violet', tokenAddress: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', decimals: 18, chainId: 137 },
   { symbol: 'USDC', name: 'USD Coin', color: 'blue',   tokenAddress: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', decimals: 6,  chainId: 1 },
@@ -675,29 +675,29 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
       )}
 
       {quoteError && (
-        <div className="px-4 py-3 bg-orange-500/8 border border-orange-500/20 rounded-2xl">
-          <p className="text-[11px] text-orange-400">{quoteError}</p>
+        <div className="px-4 py-3 bg-blue-500/8 border border-blue-500/20 rounded-2xl">
+          <p className="text-[11px] text-blue-400">{quoteError}</p>
         </div>
       )}
 
       {/* FX */}
       {swapValueUsd >= FX_THRESHOLD_USD && canSwap && (
-        <div className="bg-amber-500/8 border border-amber-500/30 rounded-2xl p-3 space-y-2">
+        <div className="bg-cyan-500/8 border border-cyan-500/30 rounded-2xl p-3 space-y-2">
           <div className="flex items-center gap-2">
-            <AlertTriangle size={12} className="text-amber-400 shrink-0" />
-            <p className="text-[11px] font-bold text-amber-400">외국환거래법 제18조 — 거래 목적 입력 필수</p>
+            <AlertTriangle size={12} className="text-cyan-400 shrink-0" />
+            <p className="text-[11px] font-bold text-cyan-400">외국환거래법 제18조 — 거래 목적 입력 필수</p>
           </div>
           <textarea value={fxReason} onChange={e => setFxReason(e.target.value)}
             placeholder="거래 목적 (최소 5자)" rows={2}
-            className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-amber-500/30 focus:border-amber-400 outline-none resize-none placeholder-slate-600" />
+            className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-cyan-500/30 focus:border-cyan-400 outline-none resize-none placeholder-slate-600" />
         </div>
       )}
 
       {/* Action */}
       {!canSwap && selectedWallet ? (
-        <div className="flex flex-col items-center gap-2 p-4 bg-orange-500/8 border border-orange-500/20 rounded-2xl text-center">
-          <AlertCircle size={18} className="text-orange-400" />
-          <p className="text-xs font-bold text-orange-400">스왑 미지원 지갑</p>
+        <div className="flex flex-col items-center gap-2 p-4 bg-blue-500/8 border border-blue-500/20 rounded-2xl text-center">
+          <AlertCircle size={18} className="text-blue-400" />
+          <p className="text-xs font-bold text-blue-400">스왑 미지원 지갑</p>
           <p className="text-[10px] text-slate-400">xLOT 및 EVM 호환지갑(MetaMask, Rabby 등)만 지원</p>
         </div>
       ) : (

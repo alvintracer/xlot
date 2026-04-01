@@ -12,6 +12,12 @@ import { AssetsView } from "./components/AssetView";
 import { useActiveAccount } from "thirdweb/react";
 import { SSSTestPanel } from './components/SSSTestPanel';
 
+
+// 익스텐션 팝업 감지
+const _cr = (globalThis as any).chrome?.runtime;
+const IS_EXT_POPUP_DASH = typeof _cr !== 'undefined' && !!_cr?.id
+  && !new URLSearchParams(window.location.search).get('mode');
+
 type TabId = "assets" | "swap" | "trade" | "activity";
 
 export function Dashboard() {

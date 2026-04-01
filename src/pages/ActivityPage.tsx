@@ -463,7 +463,7 @@ export function ActivityPage() {
               <p className="text-[10px] text-slate-300 font-mono break-all line-clamp-3">{lookupChallenge}</p>
             </div>
             <button onClick={handleTRSign}
-              className="w-full py-2.5 bg-amber-500/20 border border-amber-500/30 rounded-xl text-xs font-bold text-amber-400">
+              className="w-full py-2.5 bg-cyan-500/20 border border-cyan-500/30 rounded-xl text-xs font-bold text-cyan-400">
               지갑으로 서명하기
             </button>
           </div>
@@ -496,7 +496,7 @@ export function ActivityPage() {
                 <Printer size={10}/> 과세 PDF
               </button>
               <button onClick={() => handlePrint(lookupResult, 'exchange')}
-                className="flex-1 py-2 rounded-lg text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 flex items-center justify-center gap-1">
+                className="flex-1 py-2 rounded-lg text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center gap-1">
                 <FileText size={10}/> 소명 PDF
               </button>
             </div>
@@ -587,7 +587,7 @@ export function ActivityPage() {
                               <Printer size={9}/> 과세
                             </button>
                             <button onClick={() => handlePrint(item, 'exchange')}
-                              className="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 flex items-center justify-center gap-1">
+                              className="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center gap-1">
                               <FileText size={9}/> 소명
                             </button>
                           </div>
@@ -639,7 +639,7 @@ export function ActivityPage() {
           {[
             ['Total TR 전송액', `₩${Math.floor(taxSummary.totalKrw / 10000).toLocaleString()}만`, 'text-white'],
             ['기본 공제', `-₩${(taxSummary.deduction / 10000).toFixed(0)}만`, 'text-slate-400'],
-            ['과세 표준 (예상)', `₩${Math.floor(taxSummary.taxBase / 10000).toLocaleString()}만`, 'text-amber-400'],
+            ['과세 표준 (예상)', `₩${Math.floor(taxSummary.taxBase / 10000).toLocaleString()}만`, 'text-cyan-400'],
             ['예상 세액 (22%)', `₩${Math.floor(taxSummary.taxAmount / 10000).toLocaleString()}만`, 'text-red-400 font-black'],
           ].map(([k, v, cls]) => (
             <div key={k} className="flex justify-between items-center px-4 py-3 border-b border-slate-900/50 last:border-0">
@@ -649,9 +649,9 @@ export function ActivityPage() {
           ))}
         </div>
 
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2">
-          <AlertCircle size={12} className="text-amber-400 mt-0.5 shrink-0"/>
-          <p className="text-[10px] text-amber-300/80 leading-relaxed">
+        <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3 flex items-start gap-2">
+          <AlertCircle size={12} className="text-cyan-400 mt-0.5 shrink-0"/>
+          <p className="text-[10px] text-cyan-300/80 leading-relaxed">
             TR 전송액 기준 모의 계산입니다. 취득가액, 수수료 등 실제 세금 계산은
             세무사 확인을 권장합니다. 한국 기준 22% (지방세 포함).
           </p>
@@ -675,14 +675,14 @@ export function ActivityPage() {
       {/* 거래소 소명 */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
         <p className="text-xs font-bold text-white flex items-center gap-2">
-          <FileText size={13} className="text-amber-400"/> 거래소 출금 소명
+          <FileText size={13} className="text-cyan-400"/> 거래소 출금 소명
         </p>
         <p className="text-[11px] text-slate-500 leading-relaxed">
           거래소 출금 정지 해제, 자금 출처 소명에 활용할 수 있는 확인서를 발급합니다.
           Reference ID로 조회 후 PDF를 생성하세요.
         </p>
         <button onClick={() => setMainTab('travel_rule')}
-          className="w-full py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs font-bold text-amber-400 flex items-center justify-center gap-2">
+          className="w-full py-3 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-xs font-bold text-cyan-400 flex items-center justify-center gap-2">
           <ShieldCheck size={13}/> Travel Rule 탭에서 소명서 발급 →
         </button>
 

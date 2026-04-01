@@ -1,0 +1,69 @@
+{
+  "manifest_version": 3,
+  "name": "xLOT Wallet",
+  "version": "1.0.0",
+  "description": "xLOT Smart Wallet Extension",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "background": {
+    "service_worker": "service-worker-loader.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "assets/inpage.ts-DUaVzDn6.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "js": [
+        "assets/content.ts-4vMRdNd5.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; frame-src https://embedded-wallet.thirdweb.com https://in-app-wallet.thirdweb.com https://*.thirdweb.com https://accounts.google.com https://appleid.apple.com https://www.google.com; connect-src https://*.thirdweb.com wss://*.thirdweb.com https://*.supabase.co https://api.upbit.com https://api.0x.org https://rpc.ankr.com https://api.trongrid.io https://*.infura.io https://*.alchemy.com https://polygon-amoy.g.alchemy.com; object-src 'self'"
+  },
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "resources": [
+        "assets/inpage.ts-DUaVzDn6.js",
+        "assets/content.ts-4vMRdNd5.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ]
+}

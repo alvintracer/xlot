@@ -171,6 +171,6 @@ export const RWA_CATEGORY_LABELS: Record<RWACategory, string> = {
 
 export const RWA_CATEGORY_COLORS: Record<RWACategory, { bg: string; border: string; text: string; icon: string }> = {
   treasury:  { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400', icon: '🏛️' },
-  commodity: { bg: 'bg-yellow-500/10',  border: 'border-yellow-500/30',  text: 'text-yellow-400',  icon: '🏅' },
+  commodity: { bg: 'bg-teal-500/10',  border: 'border-teal-500/30',  text: 'text-teal-400',  icon: '🏅' },
   credit:    { bg: 'bg-purple-500/10',  border: 'border-purple-500/30',  text: 'text-purple-400',  icon: '📋' },
 };

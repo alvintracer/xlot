@@ -42,7 +42,7 @@ export function CredentialBadge({ credential, compact = false, onRequest }: Badg
       >
         <ShieldCheck size={12} strokeWidth={2.5} />
         {isActive ? config.label : `${config.label} 필요`}
-        {isActive && expiringSoon && <Clock size={8} className="text-amber-400" />}
+        {isActive && expiringSoon && <Clock size={8} className="text-cyan-400" />}
       </span>
     );
   }

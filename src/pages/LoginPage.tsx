@@ -14,8 +14,18 @@ import { ShieldCheck, Zap, ChevronRight, ArrowLeft, KeyRound, Power, Lock } from
 import { XLOTWalletCreateModal } from '../components/XLOTWalletCreateModal';
 import { useSSSOnboarding } from '../App';
 import { XLOTWalletRecoverModal } from '../components/XLOTWalletRecoverModal';
+import { ExtensionInlineLogin } from '../extension/ExtensionInlineLogin';
 
-const wallets = [
+const _cr = (globalThis as any).chrome?.runtime;
+export const IS_EXT_POPUP = typeof _cr !== 'undefined' && !!_cr?.id
+  && !new URLSearchParams(window.location.search).get('mode');
+
+const wallets = IS_EXT_POPUP ? [
+  inAppWallet({
+    auth: { options: ['email'] },
+    metadata: { name: 'xLOT Wallet', image: undefined },
+  })
+] : [
   inAppWallet({
     auth: { options: ['google', 'apple', 'email'] },
     metadata: { name: 'xLOT Wallet', image: undefined },
@@ -25,12 +35,15 @@ const wallets = [
 
 type OnboardMode = 'main' | 'create_select' | 'smart' | 'seed';
 
+// 익스텐션 툴바 팝업 컨텍스트 여부는 위에서 선언됨
+
 export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
   const { setSSSOnboarding } = useSSSOnboarding();
   const account = useActiveAccount();
   const [mode, setMode]             = useState<OnboardMode>('main');
   const [showCreate, setShowCreate] = useState(false);
   const [showRecover, setShowRecover] = useState(false);
+  const [agreed, setAgreed] = useState(false); // 약관 동의 상태 추가
 
   // 이미 로그인된 상태 (세션 복원)
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -53,6 +66,8 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
       />
     );
   }
+
+  // ── 익스텐션 툴바 팝업도 기존과 동일한 로그인 화면 사용 ──
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
@@ -86,7 +101,7 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
           <div className="flex flex-col items-center animate-fade-in-up">
 
             {/* 전원 버튼 — Thirdweb ConnectButton */}
-            <div className="relative flex items-center justify-center mb-8">
+            <div className={`relative flex items-center justify-center mb-8 transition-opacity duration-300 ${!agreed ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
               {/* 외부 글로우 링 */}
               <div className="absolute w-[200px] h-[200px] rounded-full border border-cyan-500/10 animate-pulse" />
               <div className="absolute w-[160px] h-[160px] rounded-full border border-cyan-500/20" />
@@ -101,6 +116,8 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
                     title: 'xLOT 시작하기',
                     titleIcon: '',
                     showThirdwebBranding: false,
+                    termsOfServiceUrl: 'https://traverse.kr',
+                    privacyPolicyUrl: '/privacy.html',
                     welcomeScreen: {
                       title: 'xLOT Wallet',
                       subtitle: '안전하고 간편한 자산 관리의 시작',
@@ -132,9 +149,27 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
             </div>
 
             <p className="text-slate-500 text-sm mb-2">이메일 · 구글로 로그인</p>
-            <p className="text-slate-700 text-[11px] mb-10">
-              이미 계정이 있으시면 로그인 버튼을 누르세요
+            <p className="text-slate-700 text-[11px] mb-6">
+              이미 계정이 있으시면 로긴 버튼을 누르세요
             </p>
+
+            {/* 약관 동의 체크박스 */}
+            <label className="flex items-center justify-center gap-2 mb-8 cursor-pointer select-none">
+              <div className="relative flex items-center">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="peer appearance-none w-5 h-5 border-2 border-slate-600 rounded-md bg-slate-900 checked:bg-cyan-500 checked:border-cyan-500 transition-all cursor-pointer"
+                />
+                <svg className="absolute w-3 h-3 text-slate-950 pointer-events-none opacity-0 peer-checked:opacity-100 left-1 top-1" viewBox="0 0 14 10" fill="none">
+                  <path d="M1 5L5 9L13 1" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <span className="text-xs text-slate-400">
+                <a href="/privacy.html" target="_blank" className="text-cyan-400 hover:text-cyan-300 hover:underline underline-offset-2 transition-colors" onClick={e => e.stopPropagation()}>개인정보처리방침</a> 및 필수 약관 동의
+              </span>
+            </label>
 
             {/* 구분선 */}
             <div className="flex items-center gap-3 w-full mb-6">
@@ -146,16 +181,13 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
             {/* 지갑 생성하기 버튼 → create_select로 */}
             <button
               onClick={() => setMode('create_select')}
-              className="w-full py-4 rounded-2xl font-bold text-sm text-slate-300 bg-slate-900 border border-slate-800 hover:border-slate-600 hover:text-white transition-all flex items-center justify-center gap-2 group"
+              disabled={!agreed}
+              className={`w-full py-4 rounded-2xl font-bold text-sm bg-slate-900 border transition-all flex items-center justify-center gap-2 group ${!agreed ? 'opacity-50 border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-800 hover:border-slate-600 text-slate-300 hover:text-white'}`}
             >
-              <KeyRound size={16} className="text-slate-500 group-hover:text-cyan-400 transition-colors" />
+              <KeyRound size={16} className={`transition-colors ${!agreed ? 'text-slate-600' : 'text-slate-500 group-hover:text-cyan-400'}`} />
               지갑 생성하기
-              <ChevronRight size={14} className="text-slate-600 group-hover:text-cyan-400 transition-colors" />
+              <ChevronRight size={14} className={`transition-colors ${!agreed ? 'text-slate-600' : 'text-slate-600 group-hover:text-cyan-400'}`} />
             </button>
-
-            <p className="text-[10px] text-slate-700 text-center mt-4">
-              계속 진행하면 xLOT 이용약관에 동의하게 됩니다
-            </p>
           </div>
         )}
 
@@ -313,8 +345,8 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
             </button>
 
             {/* 스마트 월렛도 필요한 경우 안내 */}
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-              <p className="text-[10px] text-amber-300/80 leading-relaxed">
+            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3">
+              <p className="text-[10px] text-cyan-300/80 leading-relaxed">
                 ⚠️ 비수탁 지갑은 비밀번호와 휴대폰 번호가 복구 수단이 됩니다.
                 반드시 기억할 수 있는 정보로 설정하세요.
               </p>
@@ -545,6 +577,114 @@ function LockedScreen({
         <Lock size={12} />
         <span className="text-[10px] font-mono">SESSION LOCKED</span>
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// ExtensionPopupLoginGate
+//
+// 흐름:
+//  1) 팝업 열림 → chrome.storage.local.accounts 확인
+//  2) 저장된 주소 있음 + 이번 세션에 재연결 미시도
+//     → sessionStorage 플래그 세팅 후 reload → Thirdweb auto-connect
+//  3) 저장된 주소 있음 + 이미 재연결 시도했지만 account=null
+//     → 5초 스피너 후 수동 로그인 게이트
+//  4) 저장된 주소 없음 → 로그인 게이트 바로 표시
+//  5) 로그인 탭 열기 → 완료 후 팝업을 다시 열면 1)번 흐름으로 자동 연결
+// ============================================================
+function ExtensionPopupLoginGate() {
+  type Phase = 'checking' | 'reconnecting' | 'waiting' | 'no-account';
+  const [phase, setPhase] = useState<Phase>('checking');
+
+  useEffect(() => {
+    const chromeAny = (globalThis as any).chrome;
+    if (!chromeAny?.storage?.local) { setPhase('no-account'); return; }
+
+    chromeAny.storage.local.get('accounts', (result: { accounts?: string[] }) => {
+      const hasAccount = (result.accounts?.length ?? 0) > 0;
+      if (!hasAccount) { setPhase('no-account'); return; }
+
+      const alreadyTried = sessionStorage.getItem('xlot_reconnect_tried') === '1';
+      if (!alreadyTried) {
+        // 첫 시도: 리로드 → Thirdweb auto-connect
+        sessionStorage.setItem('xlot_reconnect_tried', '1');
+        window.location.reload();
+      } else {
+        // 재시도: 5초 대기 후 수동 게이트로 전환
+        setPhase('reconnecting');
+        setTimeout(() => {
+          sessionStorage.removeItem('xlot_reconnect_tried');
+          setPhase('no-account');
+        }, 5000);
+      }
+    });
+  }, []);
+
+  const openLoginTab = () => {
+    const chromeAny = (globalThis as any).chrome;
+    if (chromeAny?.tabs?.create) {
+      chromeAny.tabs.create({
+        url: chromeAny.runtime.getURL('index.html?mode=login'),
+        active: true, // 탭 열리면 팝업이 닫힘 — 의도된 동작
+      });
+    }
+    setPhase('waiting');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-6 px-6 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden">
+        <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-contain rounded-xl" />
+      </div>
+
+      {(phase === 'checking' || phase === 'reconnecting') && (
+        <>
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-400" />
+          <div className="space-y-1">
+            <p className="text-white font-semibold text-sm">자동 연결 중...</p>
+            <p className="text-slate-500 text-xs">이전 로그인 세션을 복원하고 있습니다.</p>
+          </div>
+        </>
+      )}
+
+      {phase === 'waiting' && (
+        <>
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-400" />
+          <div className="space-y-2">
+            <p className="text-white font-semibold text-sm">로그인 탭에서 완료해 주세요</p>
+            <p className="text-slate-500 text-xs">
+              로그인 완료 후 탭이 닫히면<br />
+              팝업 아이콘을 한 번 더 클릭하세요.
+            </p>
+          </div>
+        </>
+      )}
+
+      {phase === 'no-account' && (
+        <>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
+              xLOT Wallet
+            </h1>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Google · 이메일 로그인은<br />새 탭에서 진행합니다.
+            </p>
+            <p className="text-slate-600 text-xs">
+              Chrome 팝업 보안 정책으로 인해<br />OAuth가 이 창에서는 동작하지 않습니다.
+            </p>
+          </div>
+          <button
+            onClick={openLoginTab}
+            className="w-full max-w-xs py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-bold text-sm hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] transition-all"
+          >
+            새 탭에서 로그인 열기
+          </button>
+          <p className="text-slate-700 text-[11px]">
+            로그인 완료 후 팝업 아이콘을 다시 클릭하세요.
+          </p>
+        </>
+      )}
     </div>
   );
 }

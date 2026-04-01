@@ -24,18 +24,18 @@ interface Props {
 
 // === CONSTANTS ===
 const WEB3_WALLETS = [
-  { id: 'METAMASK',  name: 'MetaMask',   icon: '🦊',  bg: 'bg-orange-500/10', color: 'text-orange-500', supported: ['EVM'] },
+  { id: 'METAMASK',  name: 'MetaMask',   icon: '🦊',  bg: 'bg-blue-500/10', color: 'text-blue-500', supported: ['EVM'] },
   { id: 'RABBY',     name: 'Rabby',       icon: '🐰',  bg: 'bg-blue-500/10',   color: 'text-blue-500',   supported: ['EVM'] },
   { id: 'PHANTOM',   name: 'Phantom',     icon: '👻',  bg: 'bg-purple-500/10', color: 'text-purple-500', supported: ['SOL', 'EVM', 'BTC'] },
-  { id: 'SOLFLARE',  name: 'Solflare',    icon: '☀️',  bg: 'bg-orange-400/10', color: 'text-orange-400', supported: ['SOL'] },
+  { id: 'SOLFLARE',  name: 'Solflare',    icon: '☀️',  bg: 'bg-blue-400/10', color: 'text-blue-400', supported: ['SOL'] },
   { id: 'OKX',       name: 'OKX Wallet',  icon: 'X',   bg: 'bg-slate-800',     color: 'text-white',      supported: ['EVM', 'SOL', 'TRON', 'BTC'] },
   { id: 'TRONLINK',  name: 'TronLink',    icon: '⚡',  bg: 'bg-red-500/10',    color: 'text-red-400',    supported: ['TRON'] },
 ];
 
 const CEX_LIST = [
   { id: 'UPBIT', name: 'Upbit', icon: 'Up', bg: 'bg-indigo-500/10', color: 'text-indigo-500', url: "https://upbit.com/mypage/open_api_management" },
-  { id: 'BITHUMB', name: 'Bithumb', icon: 'Bi', bg: 'bg-orange-500/10', color: 'text-orange-500', url: "https://www.bithumb.com/react/api-support/management-api" },
-  { id: 'BINANCE', name: 'Binance', icon: '🟡', bg: 'bg-yellow-500/10', color: 'text-yellow-500', url: "https://www.binance.com/en/my/settings/api-management" },
+  { id: 'BITHUMB', name: 'Bithumb', icon: 'Bi', bg: 'bg-blue-500/10', color: 'text-blue-500', url: "https://www.bithumb.com/react/api-support/management-api" },
+  { id: 'BINANCE', name: 'Binance', icon: '🟡', bg: 'bg-teal-500/10', color: 'text-teal-500', url: "https://www.binance.com/en/my/settings/api-management" },
   { id: 'OKX_CEX', name: 'OKX', icon: 'OK', bg: 'bg-white/10', color: 'text-white', url: "https://www.okx.com/account/users/api" },
 ];
 
@@ -43,7 +43,7 @@ const CHAINS = [
   { id: 'EVM', label: 'Ethereum', color: 'cyan' },
   { id: 'SOL', label: 'Solana', color: 'purple' },
   { id: 'TRON', label: 'Tron', color: 'red' },
-  { id: 'BTC', label: 'Bitcoin', color: 'orange' },
+  { id: 'BTC', label: 'Bitcoin', color: 'blue' },
 ];
 
 export function AddWalletModal({ onClose, onSuccess }: Props) {
