@@ -144,12 +144,13 @@ export function SendModal({ onClose }: { onClose: () => void }) {
   const availableAssets = useMemo(() => {
     if (!selectedWallet) return [];
 
-    // XLOT_SSS: 4체인 네이티브 자산 항상 표시
+    // XLOT_SSS: 4체인 네이티브 자산 항상 표시 (토큰 포함)
     if (selectedWallet.wallet_type === 'XLOT_SSS') {
       const assets = selectedWallet.assets || [];
       const result: WalletAsset[] = [];
       if (selectedWallet.addresses.evm) {
-        const evmAssets = assets.filter(a => ['Ethereum','Polygon','Sepolia','Amoy'].includes(a.network));
+        const evmNetworks = ['Ethereum', 'Polygon', 'Sepolia', 'Amoy', 'Base', 'Arbitrum', 'EVM'];
+        const evmAssets = assets.filter(a => evmNetworks.includes(a.network));
         result.push(...(evmAssets.length > 0 ? evmAssets : [{
           symbol: 'ETH', name: 'Ethereum', balance: selectedWallet.balances?.evm || 0,
           price: prices?.tokens?.eth?.usd || 0, value: 0, change: 0, network: 'Ethereum', isNative: true
@@ -164,8 +165,12 @@ export function SendModal({ onClose }: { onClose: () => void }) {
         result.push(b || { symbol: 'BTC', name: 'Bitcoin', balance: 0, price: prices?.tokens?.btc?.usd || 0, value: 0, change: 0, network: 'Bitcoin', isNative: true } as WalletAsset);
       }
       if (selectedWallet.addresses.trx) {
-        const t = assets.find(a => a.symbol === 'TRX');
-        result.push(t || { symbol: 'TRX', name: 'Tron', balance: 0, price: prices?.tokens?.trx?.usd || 0, value: 0, change: 0, network: 'Tron', isNative: true } as WalletAsset);
+        const tronAssets = assets.filter(a => a.network === 'Tron');
+        if (tronAssets.length > 0) {
+          result.push(...tronAssets);
+        } else {
+          result.push({ symbol: 'TRX', name: 'Tron', balance: 0, price: prices?.tokens?.trx?.usd || 0, value: 0, change: 0, network: 'Tron', isNative: true } as WalletAsset);
+        }
       }
       return result;
     }

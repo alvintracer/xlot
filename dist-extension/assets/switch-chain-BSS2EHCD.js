@@ -1,0 +1,1 @@
+import{J as n,L as e}from"./index.html-Dc73HJ0k.js";async function r(t){const{wallet:a,params:i}=t;return a.getChain()?.id===n(i[0].chainId)||await a.switchChain(e(n(i[0].chainId))),"0x1"}export{r as handleSwitchChain};
