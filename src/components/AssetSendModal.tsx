@@ -375,28 +375,18 @@ export function SendModal({ onClose }: { onClose: () => void }) {
 
                     if (needsJit) {
                         alert("TRX 가스비가 부족하여 백그라운드 JIT 선지원을 요청합니다. (최대 15초 소요)");
-                        await requestTronJit(selectedWallet.addresses.trx || '');
+                        
+                        // ⭐️ 트론 USDT 전송은 최대 약 30 TRX (에너지 64,895)가 소모됩니다.
+                        await requestTronJit(selectedWallet.addresses.trx || '', 30);
+                        
                         // 수수료 0.1 USDT 차감
                         finalAmountToSend = finalAmountToSend - 0.1;
                         if (finalAmountToSend <= 0) throw new Error("전송 금액이 JIT 수수료(0.1 USDT)보다 작습니다.");
                         
-                        // 선지원금 도착 대기 (최대 15초 폴링)
-                        let jitConfirmed = false;
-                        for (let i = 0; i < 7; i++) {
-                            await new Promise(r => setTimeout(r, 3000));
-                            try {
-                                const checkRes = await fetch(`https://api.trongrid.io/v1/accounts/${selectedWallet.addresses.trx}`);
-                                const checkData = await checkRes.json();
-                                if (checkData && checkData.data && checkData.data.length > 0) {
-                                    jitConfirmed = true;
-                                    break;
-                                }
-                            } catch (err) {}
-                        }
-                        
-                        if (!jitConfirmed) {
-                            alert("⚠️ TRX 가스 지원이 지연되고 있습니다. 잠시 후 트랜잭션이 실패할 수 있습니다.");
-                        }
+                        // ⭐️ Trongrid API 429(Rate Limit) 에러 방지를 위해 15초 정적 대기
+                        console.log("Waiting 15s for JIT TRX arrival...");
+                        await new Promise(r => setTimeout(r, 15000));
+                        console.log("Wait complete, proceeding with TRC20 transfer.");
                     }
 
                     let txHash = '';
@@ -755,7 +745,7 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                           className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all animate-fade-in border border-slate-700 hover:border-slate-600"
                       >
                           <ShieldCheck size={14} className="text-cyan-400"/>
-                          👮‍♂️ 잠깐! 사기·범죄 계좌인지 확인하기
+                          잠깐! 사기·범죄 계좌인지 확인하기
                       </button>
                   )}
 
