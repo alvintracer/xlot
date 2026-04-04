@@ -5,7 +5,7 @@
  * 선택한 주소를 accounts[0] + xlot_active_address 로 저장한다.
  */
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Check, Copy, ExternalLink, Shield, Zap } from 'lucide-react';
+import { ChevronDown, Check, Copy, ExternalLink, Shield, Zap, ShieldCheck } from 'lucide-react';
 
 interface AccountEntry {
   address: string;
