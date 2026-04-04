@@ -378,7 +378,7 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
             <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-2xl p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <ShieldCheck size={16} className="text-cyan-400" />
-                <p className="text-sm font-black text-white">xLOT 비수탁 지갑</p>
+                <p className="text-sm font-black text-white">took 비수탁 지갑</p>
                 <span className="text-[9px] bg-cyan-500 text-white px-1.5 py-0.5 rounded font-bold">NEW</span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
@@ -553,7 +553,7 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
                 <KeyRound size={16}/> Triple-Shield 키 가져오기
               </h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                프라이빗 키를 SSS 2-of-3으로 분할해 비밀번호·휴대폰·이메일로 보호합니다.
+                프라이빗 키를 SAR 2-of-3으로 분할해 비밀번호·휴대폰·이메일로 보호합니다.
               </p>
             </div>
 
@@ -660,7 +660,7 @@ export function AddWalletModal({ onClose, onSuccess }: Props) {
               <div className="space-y-3">
                 <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-[11px] text-emerald-300/80">
                   ✅ 휴대폰 + 이메일 인증 완료<br/>
-                  이제 PIN을 설정하면 SSS 저장이 완료됩니다.
+                  이제 PIN을 설정하면 SAR 저장이 완료됩니다.
                 </div>
                 <button onClick={() => setShowImportKeypad(true)}
                   className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl font-bold text-white flex items-center justify-center gap-2">

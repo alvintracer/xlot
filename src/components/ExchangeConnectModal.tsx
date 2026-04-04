@@ -160,11 +160,11 @@ export function ExchangeConnectModal({ walletAddress, walletLabel, onClose }: Pr
                 <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 space-y-3">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center overflow-hidden">
-                      <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-cover" />
+                      <img src="/icon-192.png" alt="took" className="w-full h-full object-cover" />
                     </div>
                     <div>
                       <p className="text-xs font-black text-white">{walletLabel}</p>
-                      <p className="text-[10px] text-slate-500">XLOT SSS 지갑</p>
+                      <p className="text-[10px] text-slate-500">took SAR 지갑</p>
                     </div>
                   </div>
                   <div>
@@ -263,7 +263,7 @@ export function ExchangeConnectModal({ walletAddress, walletLabel, onClose }: Pr
                   <div className="flex items-start gap-2 p-3 bg-slate-900 rounded-xl border border-slate-800">
                     <CheckCircle2 size={13} className="text-emerald-400 mt-0.5 shrink-0" />
                     <p className="text-[11px] text-slate-400 leading-relaxed">
-                      열린 탭에서 "메타마스크(MetaMask)" 연결을 클릭하세요. 메타마스크 대신 xLOT 팝업이 뜨고 서명을 진행할 수 있습니다.
+                      열린 탭에서 "메타마스크(MetaMask)" 연결을 클릭하세요. 메타마스크 대신 took 팝업이 뜨고 서명을 진행할 수 있습니다.
                     </p>
                   </div>
                 </div>

@@ -467,7 +467,7 @@ export function ExtensionRequestPage() {
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold">
           X
         </div>
-        <span className="text-white font-semibold text-sm">xLOT Wallet</span>
+        <span className="text-white font-semibold text-sm">took Wallet</span>
       </div>
 
       {/* 출처 사이트 표시 */}

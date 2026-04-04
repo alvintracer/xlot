@@ -163,7 +163,7 @@ export function RWAYieldPanel({ onSelectAsset }: RWAYieldPanelProps) {
 
       {/* 규제 면책 안내 */}
       <div className="flex items-start gap-2 bg-slate-900/50 border border-slate-800 rounded-xl p-3">
-        <Shield size={12} className="text-slate-500 mt-0.5 shrink-0" />
+        <ShieldCheck size={12} className="text-slate-500 mt-0.5 shrink-0" />
         <p className="text-[10px] text-slate-500 leading-relaxed">
           RWA 투자는 KYC 인증이 필요합니다. $10,000 이상 거래 시 외국환거래법에 따라 거래 목적 입력이 필요합니다.
         </p>

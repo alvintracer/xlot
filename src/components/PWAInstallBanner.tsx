@@ -88,11 +88,11 @@ export function PWAInstallBanner() {
 
           {/* 앱 아이콘 */}
           <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(34,211,238,0.4)] overflow-hidden p-0.5">
-            <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-cover rounded-lg" />
+            <img src="/icon-192.png" alt="took" className="w-full h-full object-cover rounded-lg" />
           </div>
 
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-white">xLOT 앱 설치</p>
+            <p className="text-sm font-black text-white">took 앱 설치</p>
             <p className="text-[11px] text-slate-400 mt-0.5">
               홈화면에 추가하면 더 안전하게 보관돼요
             </p>
@@ -125,7 +125,7 @@ export function PWAInstallBanner() {
           <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl p-4 shadow-[0_0_30px_rgba(34,211,238,0.15)]">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 overflow-hidden p-0.5">
-                <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-cover rounded-lg" />
+                <img src="/icon-192.png" alt="took" className="w-full h-full object-cover rounded-lg" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-black text-white">홈화면에 추가하기</p>
@@ -204,7 +204,7 @@ export function PWAInstallBanner() {
                     <p className="text-sm font-bold text-white mb-1">"추가" 탭</p>
                     <p className="text-xs text-slate-500">
                       우측 상단 "추가"를 누르면 완료!<br/>
-                      이후 홈화면 xLOT 아이콘으로 실행하세요.
+                      이후 홈화면 took 아이콘으로 실행하세요.
                     </p>
                   </div>
                 </div>

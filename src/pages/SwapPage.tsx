@@ -698,7 +698,7 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
         <div className="flex flex-col items-center gap-2 p-4 bg-blue-500/8 border border-blue-500/20 rounded-2xl text-center">
           <AlertCircle size={18} className="text-blue-400" />
           <p className="text-xs font-bold text-blue-400">스왑 미지원 지갑</p>
-          <p className="text-[10px] text-slate-400">xLOT 및 EVM 호환지갑(MetaMask, Rabby 등)만 지원</p>
+          <p className="text-[10px] text-slate-400">took 및 EVM 호환지갑(MetaMask, Rabby 등)만 지원</p>
         </div>
       ) : (
         <button onClick={handleSwap} disabled={!canSubmit || swapping}

@@ -633,7 +633,7 @@ function ComparisonCalculator({ asset, comparison, usdcAmount }: {
         <div className={`rounded-xl p-3 ${comparison.isDexBetter
           ? 'bg-emerald-500/15 border border-emerald-500/30' : 'bg-slate-800'}`}>
           <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[9px] text-slate-500 font-bold">DEX (xLOT)</p>
+            <p className="text-[9px] text-slate-500 font-bold">DEX (took)</p>
             {comparison.isDexBetter && (
               <span className="text-[8px] font-black bg-emerald-500 text-white px-1 py-0.5 rounded">최적</span>
             )}

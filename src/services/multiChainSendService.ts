@@ -76,7 +76,8 @@ export async function sendSOL(
     skipPreflight: false,
     preflightCommitment: 'confirmed',
   });
-  await conn.confirmTransaction(sig, 'confirmed');
+  // confirmTransaction은 타임아웃 오류 유발 가능 → fire-and-forget으로 백그라운드 처리
+  conn.confirmTransaction(sig, 'confirmed').catch(() => {/* 무시 - 이미 제출 성공 */});
 
   return { txHash: sig, chain: 'SOL' };
 }
@@ -108,7 +109,15 @@ export async function sendTRX(
 
   const TronWebPkg = await import('tronweb');
   const TronWebCtor = (TronWebPkg as any).TronWeb || (TronWebPkg as any).default?.TronWeb || (TronWebPkg as any).default || TronWebPkg;
-  const tronWeb = new TronWebCtor({ fullHost: 'https://api.trongrid.io', privateKey: privKeyHex });
+  
+  const tronKeyStrTrx = (import.meta.env.VITE_TRONSCAN_API_KEYS || import.meta.env.VITE_TRON_PRO_API_KEY || '').trim();
+  const tronKeysTrx = tronKeyStrTrx.split(',').map((k: string) => k.trim()).filter(Boolean);
+  const tronApiKeyTrx = tronKeysTrx.length > 0 ? tronKeysTrx[Math.floor(Math.random() * tronKeysTrx.length)] : '';
+
+  const tronWebOpts: any = { fullHost: 'https://api.trongrid.io', privateKey: privKeyHex };
+  if (tronApiKeyTrx) { tronWebOpts.headers = { "TRON-PRO-API-KEY": tronApiKeyTrx }; }
+
+  const tronWeb = new TronWebCtor(tronWebOpts);
 
   const sunAmount = Math.floor(amountTRX * 1_000_000);
   const extraData = referenceId ? TR_CALLDATA_PREFIX.slice(2) + referenceId : undefined;
@@ -125,45 +134,98 @@ export async function sendTRX(
 }
 
 // ── TRC20 전송 ───────────────────────────────────────────────
+// ── xLOT Router 컨트랙트 주소 ──
+const XLOT_ROUTER_ADDRESS = 'TF2xsVEsSEyQqCJAydXNPMe69Hr7v1aQJS';
+
+// xLOTRouter ABI (transferWithFee + approve)
+const XLOT_ROUTER_ABI = [
+  { "inputs": [{"name":"token","type":"address"},{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],
+    "name": "transferWithFee", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "feeRate", "outputs": [{"type":"uint256"}], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "minFee",  "outputs": [{"type":"uint256"}], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "paused",  "outputs": [{"type":"bool"}],    "stateMutability": "view", "type": "function" },
+];
+
+const TRC20_ABI = [
+  { "inputs": [{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],
+    "name": "transfer", "outputs": [{"type":"bool"}], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [{"name":"_spender","type":"address"},{"name":"_value","type":"uint256"}],
+    "name": "approve", "outputs": [{"type":"bool"}], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [{"name":"owner","type":"address"},{"name":"spender","type":"address"}],
+    "name": "allowance", "outputs": [{"type":"uint256"}], "stateMutability": "view", "type": "function" },
+  { "inputs": [{"name":"who","type":"address"}],
+    "name": "balanceOf", "outputs": [{"type":"uint256"}], "stateMutability": "view", "type": "function" },
+];
+
+/**
+ * TRC20 전송 — xLOT Router 사용 시 1tx로 수신자 전송 + 수수료 수취
+ * useRouter=false면 기존 직접 transfer (수수료 없음)
+ */
 export async function sendTRC20(
   mnemonic: string,
   toAddress: string,
   tokenAddress: string,
   amount: number,
-  feeTokens: number = 0,    // JIT 대납 시 수수료로 차감할 토큰 수량 (예: 0.1 USDT)
-  feeCollector: string = "", // 수수료 수취 지갑 주소
+  useRouter: boolean = true,
   referenceId?: string
-): Promise<SendResult> {
+): Promise<SendResult & { fee?: number }> {
   const root = ethers.HDNodeWallet.fromSeed(ethers.Mnemonic.fromPhrase(mnemonic).computeSeed());
   const child = root.derivePath("m/44'/195'/0'/0/0");
   const privKeyHex = child.privateKey.slice(2);
 
   const TronWebPkg = await import('tronweb');
   const TronWebCtor = (TronWebPkg as any).TronWeb || (TronWebPkg as any).default?.TronWeb || (TronWebPkg as any).default || TronWebPkg;
-  const tronWeb = new TronWebCtor({ fullHost: 'https://api.trongrid.io', privateKey: privKeyHex });
 
+  const tronKeyStr20 = (import.meta.env.VITE_TRONSCAN_API_KEYS || import.meta.env.VITE_TRON_PRO_API_KEY || '').trim();
+  const tronKeys20 = tronKeyStr20.split(',').map((k: string) => k.trim()).filter(Boolean);
+  const tronApiKey20 = tronKeys20.length > 0 ? tronKeys20[Math.floor(Math.random() * tronKeys20.length)] : '';
+
+  const tronWebOpts: any = { fullHost: 'https://api.trongrid.io', privateKey: privKeyHex };
+  if (tronApiKey20) { tronWebOpts.headers = { "TRON-PRO-API-KEY": tronApiKey20 }; }
+  const tronWeb = new TronWebCtor(tronWebOpts);
   const fromAddress = tronWeb.address.fromPrivateKey(privKeyHex);
-  
-  // USDT TRC20 decimals 6
-  let contract;
-  try { contract = await tronWeb.contract().at(tokenAddress); } catch (e) { throw new Error("TRC20 컨트랙트 로드 실패"); }
-  
-  // 만약 JIT 수수료 차감이 있다면
-  if (feeTokens > 0 && feeCollector) {
-      const feeU256 = Math.floor(feeTokens * 1_000_000); // USDT 6 decimals 가정
-      // 실제로는 fee를 먼저 보내고 나머지를 본주소로 전송
-      await contract.methods.transfer(feeCollector, feeU256).send({ feeLimit: 1000000000 });
+  const totalRaw = Math.floor(amount * 1_000_000);
+
+  // ── 라우터 경유 (수수료 자동 징수) ──
+  if (useRouter) {
+    console.log(`[TRC20] Router path: ${amount} USDT → ${toAddress} via xLOTRouter`);
+
+    // 1) Approve: 라우터에 총액 approve (이미 충분하면 스킵)
+    const tokenContract = await tronWeb.contract(TRC20_ABI).at(tokenAddress);
+    const currentAllowance = await tokenContract.methods.allowance(fromAddress, XLOT_ROUTER_ADDRESS).call();
+    const allowanceBN = BigInt(currentAllowance.toString());
+
+    if (allowanceBN < BigInt(totalRaw)) {
+      console.log(`[TRC20] Approving ${totalRaw} to router (current: ${allowanceBN})`);
+      await tokenContract.methods.approve(XLOT_ROUTER_ADDRESS, totalRaw).send({ feeLimit: 100_000_000 });
+      // approve 확정 대기
+      await new Promise(r => setTimeout(r, 3000));
+    }
+
+    // 2) transferWithFee 호출 — 컨트랙트가 수수료 계산 + 수취인/treasury 동시 전송
+    const router = await tronWeb.contract(XLOT_ROUTER_ABI).at(XLOT_ROUTER_ADDRESS);
+    const txHash = await router.methods.transferWithFee(tokenAddress, toAddress, totalRaw).send({
+      feeLimit: 300_000_000,
+      callValue: 0,
+    });
+    console.log(`[TRC20] Router transferWithFee OK: ${txHash}`);
+
+    // 수수료 계산 (프론트 표시용) — 컨트랙트 로직과 동일
+    const feeByRate = Math.floor(totalRaw * 20 / 10000); // 0.2%
+    const minFee = 2_000_000; // 2 USDT (6 decimals) — 컨트랙트와 동일
+    const fee = Math.max(feeByRate, minFee) / 1_000_000;
+
+    return { txHash, chain: 'TRX', fee };
   }
 
-  // 본 전송
-  const sendU256 = Math.floor(amount * 1_000_000);
-  const txHash = await contract.methods.transfer(toAddress, sendU256).send({
-      feeLimit: 1000000000,
-      callValue: 0,
-      // extra data (travel rule) is usually appended in raw tx for TRC20, but tronWeb high level contract doesn't support extra_data easily.
-      // We assume basic transfer here.
+  // ── 직접 전송 (수수료 없음, Case A/D 등) ──
+  console.log(`[TRC20] Direct transfer: ${amount} (${totalRaw} raw) → ${toAddress}`);
+  const tokenContract = await tronWeb.contract(TRC20_ABI).at(tokenAddress);
+  const txHash = await tokenContract.methods.transfer(toAddress, totalRaw).send({
+    feeLimit: 300_000_000,
+    callValue: 0,
   });
-
+  console.log(`[TRC20] Direct transfer OK: ${txHash}`);
   return { txHash, chain: 'TRX' };
 }
 

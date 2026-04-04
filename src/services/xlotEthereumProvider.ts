@@ -68,7 +68,7 @@ export class XLOTEthereumProvider {
       // ── 계정 ──────────────────────────────────────────────
       case 'eth_requestAccounts':
       case 'eth_accounts':
-        if (!this._address) throw this._rpcError(4100, 'Unauthorized: xLOT 지갑이 연결되어 있지 않습니다.');
+        if (!this._address) throw this._rpcError(4100, 'Unauthorized: took 지갑이 연결되어 있지 않습니다.');
         return [this._address];
 
       // ── 체인 정보 ─────────────────────────────────────────
@@ -145,7 +145,7 @@ export class XLOTEthereumProvider {
       case 'eth_sendRawTransaction':
         throw this._rpcError(
           4200,
-          'eth_sendTransaction은 보안상 허용되지 않습니다.\n자산 전송은 xLOT 앱 내에서만 가능합니다.',
+          'eth_sendTransaction은 보안상 허용되지 않습니다.\n자산 전송은 took 앱 내에서만 가능합니다.',
         );
 
       // ── 기타 RPC 프록시 ───────────────────────────────────
@@ -272,7 +272,7 @@ const XLOT_SVG_ICON = `data:image/svg+xml,${encodeURIComponent(`
 
 export const XLOT_PROVIDER_INFO = {
   uuid: crypto.randomUUID(),
-  name: 'xLOT Wallet',
+  name: 'took Wallet',
   icon: XLOT_SVG_ICON,
   rdns: 'app.xlot.wallet',
 } as const;

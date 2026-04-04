@@ -169,7 +169,7 @@ export function SSSSigningModal({ walletAddress, smartAccountAddress, purpose, o
             </div>
             <div>
               <p className="text-sm font-black text-white">서명 인증</p>
-              <p className="text-xs text-slate-500">xLOT SSS 지갑 잠금 해제</p>
+              <p className="text-xs text-slate-500">took SAR 지갑 잠금 해제</p>
             </div>
           </div>
           <button onClick={onCancel} className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800">

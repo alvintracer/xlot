@@ -12,6 +12,7 @@ import { PhoneClaimModal } from "./components/PhoneClaimModal";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
 import { ExtensionRequestPage } from "./extension/ExtensionRequestPage";
 import { getSSSEvmAddresses } from "./services/walletService";
+import { MobileLandingPage } from "./components/MobileLandingPage";
 
 // 익스텐션 컨텍스트 여부 (chrome.runtime.id 는 extension page 에서만 정의됨)
 const _chromeRuntime = (globalThis as any).chrome?.runtime;
@@ -31,12 +32,12 @@ const IS_EXT_POPUP = IS_EXTENSION_CONTEXT && !IS_EXTENSION_LOGIN && !IS_EXTENSIO
 const AUTO_CONNECT_WALLETS = IS_EXT_POPUP ? [
   inAppWallet({ 
     auth: { options: ['email'] },
-    metadata: { name: 'xLOT Wallet', image: undefined }
+    metadata: { name: 'took Wallet', image: undefined }
   })
 ] : [
   inAppWallet({ 
     auth: { options: ['google', 'apple', 'email'] },
-    metadata: { name: 'xLOT Wallet', image: undefined }
+    metadata: { name: 'took Wallet', image: undefined }
   }),
   createWallet('io.metamask'),
 ];
@@ -86,7 +87,7 @@ async function syncExtensionAccounts(smartAddress: string) {
     (globalThis as any).chrome.runtime.sendMessage({ type: 'XLOT_SET_ACCOUNTS', accounts: [activeAddr] });
   } catch (e) {
     // SSS 주소 조회 실패 시 스마트 계정 주소를 폴백으로 사용
-    console.warn('[xLOT] SSS 주소 조회 실패, 스마트 계정 주소 사용:', e);
+    console.warn('[xLOT] SAR 주소 조회 실패, 스마트 계정 주소 사용:', e);
     cs.set({ accounts: [smartAddress], xlot_active_address: smartAddress });
     (globalThis as any).chrome.runtime.sendMessage({ type: 'XLOT_SET_ACCOUNTS', accounts: [smartAddress] });
   }
@@ -137,15 +138,24 @@ function MainRouter({ extensionLoginMode = false }: { extensionLoginMode?: boole
   const account  = useActiveAccount();
   const status   = useActiveWalletConnectionStatus();
   const [claimCommitment, setClaimCommitment] = useState<string | null>(null);
+  
   // SSS 온보딩 진행 중 플래그
   const [sssOnboarding, setSSSOnboarding] = useState(false);
 
   // ── Bug 2 fix: 잠금 상태 (세션 복원 시 잠금, unlock 시 해제) ──
   // localStorage 기반으로 재방문 여부 판단
-  // 새 사용자(첫 방문) → isLocked=false → ConnectButton 후 바로 Dashboard
-  // 재방문 사용자 → isLocked=true → LockedScreen → 해제 후 Dashboard
   const [isLocked, setIsLocked] = useState<boolean>(() => {
     try { return localStorage.getItem('xlot_visited') === '1'; } catch { return false; }
+  });
+
+  // Mobile Landing Page State
+  const [showMobileLanding, setShowMobileLanding] = useState<boolean>(() => {
+    // 이미 웹으로 계속하기 눌렀거나(캐시), 데스크탑/팝업일 경우엔 스킵
+    try { 
+       if (localStorage.getItem('took_web_continue') === '1') return false; 
+    } catch {}
+    if (IS_EXT_POPUP || IS_EXTENSION_REQUEST) return false;
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   });
 
   useEffect(() => {
@@ -200,6 +210,11 @@ function MainRouter({ extensionLoginMode = false }: { extensionLoginMode?: boole
             <Dashboard />
             <PWAInstallBanner />
           </>
+        ) : showMobileLanding && !account ? (
+          <MobileLandingPage onContinue={() => {
+             try { localStorage.setItem('took_web_continue', '1'); } catch {}
+             setShowMobileLanding(false);
+          }} />
         ) : (
           // onUnlock: LockedScreen 또는 SSS 완료 시 호출 → isLocked=false → Dashboard
           <LoginPage onUnlock={() => setIsLocked(false)} />

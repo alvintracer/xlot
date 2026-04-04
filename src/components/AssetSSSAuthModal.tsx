@@ -126,7 +126,7 @@ export function AssetSSSAuthModal({ walletAddress, onClose, onSuccess }: Props) 
           </div>
           <h2 className="text-lg font-black text-white">서명 승인</h2>
           <p className="text-xs text-slate-400 text-center mt-1">
-            SSS 지갑 트랜잭션 서명을 위해<br/>비밀번호를 입력하세요.
+            SAR 지갑 트랜잭션 서명을 위해<br/>비밀번호를 입력하세요.
           </p>
         </div>
 

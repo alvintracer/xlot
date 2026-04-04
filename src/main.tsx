@@ -22,6 +22,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 // ✨ ThirdwebProvider 임포트 필수!
 import { ThirdwebProvider } from "thirdweb/react"; 
+import { Toaster } from 'react-hot-toast';
 import './index.css'
 import App from './App.tsx'
 
@@ -30,6 +31,22 @@ createRoot(document.getElementById('root')!).render(
     {/* ✨ 앱 전체를 Provider로 감싸주세요 */}
     <ThirdwebProvider>
       <App />
+      <Toaster
+        position="bottom-center"
+        toastOptions={{
+          duration: 8000,
+          style: {
+            background: '#1e293b',
+            color: '#f1f5f9',
+            border: '1px solid #334155',
+            borderRadius: '16px',
+            fontSize: '13px',
+            maxWidth: '360px',
+          },
+          success: { iconTheme: { primary: '#34d399', secondary: '#1e293b' } },
+          error:   { iconTheme: { primary: '#f87171', secondary: '#1e293b' } },
+        }}
+      />
     </ThirdwebProvider>
   </StrictMode>,
 )

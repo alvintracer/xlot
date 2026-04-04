@@ -356,7 +356,7 @@ export function TravelRuleRetrieveModal({ onClose, prefillRefId }: Props) {
                     </p>
                     <p className="text-sm font-bold text-white">{p.originatorName || '—'}</p>
                     <p className="text-[10px] font-mono text-slate-400 break-all">{p.originatorAddress}</p>
-                    <p className="text-[10px] text-slate-500">VASP: xLOT</p>
+                    <p className="text-[10px] text-slate-500">VASP: took</p>
                   </div>
 
                   {/* 수취인 */}

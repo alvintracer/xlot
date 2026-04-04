@@ -20,7 +20,7 @@ export function WalletSetupModal() {
 
         {/* 로고 및 타이틀 */}
         <h2 className="text-3xl font-black  tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 mb-2">
-          Welcome to xLOT
+          Welcome to took
         </h2>
         <p className="text-slate-400 text-sm mb-8 font-medium">
           안전한 자산 관리를 위해 지갑을 생성해주세요.
@@ -66,11 +66,11 @@ export function WalletSetupModal() {
             wallets={wallets}
             connectModal={{
               size: "compact",
-              title: "xLOT 지갑 생성",
+              title: "took 지갑 생성",
               showThirdwebBranding: false,
             }}
             connectButton={{
-              label: "xLOT 지갑 생성하기",
+              label: "took 지갑 생성하기",
               className: "!w-full !py-4 !rounded-2xl !font-bold !text-lg !text-white !bg-gradient-to-r !from-cyan-500 !via-blue-500 !to-indigo-500 hover:!shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all",
             }}
           />

@@ -23,12 +23,12 @@ export const IS_EXT_POPUP = typeof _cr !== 'undefined' && !!_cr?.id
 const wallets = IS_EXT_POPUP ? [
   inAppWallet({
     auth: { options: ['email'] },
-    metadata: { name: 'xLOT Wallet', image: undefined },
+    metadata: { name: 'took Wallet', image: undefined },
   })
 ] : [
   inAppWallet({
     auth: { options: ['google', 'apple', 'email'] },
-    metadata: { name: 'xLOT Wallet', image: undefined },
+    metadata: { name: 'took Wallet', image: undefined },
   }),
   createWallet('io.metamask'),
 ];
@@ -82,11 +82,11 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="w-20 h-20 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden flex items-center justify-center p-1">
-              <img src="/icon-192.png" alt="xLOT Logo" className="w-full h-full object-contain rounded-xl" />
+              <img src="/icon-192.png" alt="took Logo" className="w-full h-full object-contain rounded-xl" />
             </div>
           </div>
           <h1 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 mb-3 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)]">
-            xLOT
+            took
           </h1>
           <p className="text-slate-400 text-base font-medium tracking-wide">
             Next Gen Crypto Experience
@@ -113,13 +113,13 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
                   wallets={wallets}
                   connectModal={{
                     size: 'compact',
-                    title: 'xLOT 시작하기',
+                    title: 'took 시작하기',
                     titleIcon: '',
                     showThirdwebBranding: false,
                     termsOfServiceUrl: 'https://traverse.kr',
                     privacyPolicyUrl: '/privacy.html',
                     welcomeScreen: {
-                      title: 'xLOT Wallet',
+                      title: 'took Wallet',
                       subtitle: '안전하고 간편한 자산 관리의 시작',
                     },
                   }}
@@ -236,12 +236,12 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
             >
               <div className="flex items-start gap-4">
                 <div className="w-11 h-11 rounded-xl bg-slate-700/50 border border-slate-600 flex items-center justify-center shrink-0 group-hover:border-slate-500 transition-all overflow-hidden p-[2px]">
-                  <img src="/icon-192.png" className="w-full h-full rounded-lg object-contain" alt="xLOT" />
+                  <img src="/icon-192.png" className="w-full h-full rounded-lg object-contain" alt="took" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-black text-white mb-1">시드 구문 지갑</p>
+                  <p className="text-sm font-black text-white mb-1">SAR 시드 구문 지갑</p>
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    완전 비수탁 · Triple-Shield 복구<br/>
+                    완전 비수탁 · SAR(소셜 인증 복구)<br/>
                     BTC · ETH · SOL · TRX 멀티체인
                   </p>
                 </div>
@@ -250,7 +250,7 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
             </button>
 
             <p className="text-[10px] text-slate-600 text-center pt-2">
-              계속 진행하면 xLOT 이용약관에 동의하게 됩니다
+              계속 진행하면 took 이용약관에 동의하게 됩니다
             </p>
           </div>
         )}
@@ -269,7 +269,7 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
 
             <div className="text-center space-y-1 py-2">
               <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center mx-auto mb-3 overflow-hidden p-[2px]">
-                <img src="/icon-192.png" className="w-full h-full rounded-xl object-contain" alt="xLOT" />
+                <img src="/icon-192.png" className="w-full h-full rounded-xl object-contain" alt="took" />
               </div>
               <p className="text-base font-black text-white">스마트 이더리움 월렛으로 시작</p>
               <p className="text-xs text-slate-400">이메일이나 소셜 계정으로 30초 만에 생성</p>
@@ -281,11 +281,11 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
                 wallets={wallets}
                 connectModal={{
                   size: 'compact',
-                  title: 'xLOT 시작하기',
+                  title: 'took 시작하기',
                   titleIcon: '',
                   showThirdwebBranding: false,
                   welcomeScreen: {
-                    title: 'xLOT Wallet',
+                    title: 'took Wallet',
                     subtitle: '안전하고 간편한 자산 관리의 시작',
                   },
                 }}
@@ -299,7 +299,7 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
 
             <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
               <p className="text-[10px] text-slate-400 leading-relaxed">
-                💡 스마트 이더리움 월렛은 <span className="text-cyan-400 font-bold">EVM 전용</span>이에요. 가스비를 xLOT이 대납하고,
+                💡 스마트 이더리움 월렛은 <span className="text-cyan-400 font-bold">EVM 전용</span>이에요. 가스비를 took이 대납하고,
                 시드 구문 없이도 사용할 수 있어요. 나중에 SSS 비수탁 지갑도 추가할 수 있습니다.
               </p>
             </div>
@@ -463,7 +463,7 @@ function LockedScreen({
 
       {/* 로고 */}
       <h1 className="text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 mb-2 drop-shadow-[0_0_15px_rgba(34,211,238,0.4)]">
-        xLOT
+        took
       </h1>
       <p className="text-slate-500 text-sm mb-12">Welcome back</p>
 
@@ -635,7 +635,7 @@ function ExtensionPopupLoginGate() {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-6 px-6 text-center">
       <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden">
-        <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-contain rounded-xl" />
+        <img src="/icon-192.png" alt="took" className="w-full h-full object-contain rounded-xl" />
       </div>
 
       {(phase === 'checking' || phase === 'reconnecting') && (
@@ -665,7 +665,7 @@ function ExtensionPopupLoginGate() {
         <>
           <div className="space-y-2">
             <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
-              xLOT Wallet
+              took Wallet
             </h1>
             <p className="text-slate-400 text-sm leading-relaxed">
               Google · 이메일 로그인은<br />새 탭에서 진행합니다.

@@ -34,7 +34,7 @@ import { addSSSWallet } from '../services/walletService';
 const wallets = [
   inAppWallet({
     auth: { options: ['google', 'apple', 'email'] },
-    metadata: { name: 'xLOT Wallet', image: undefined },
+    metadata: { name: 'took Wallet', image: undefined },
   }),
 ];
 
@@ -60,7 +60,7 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
   const [email, setEmail]               = useState('');
   const [emailOtp, setEmailOtp]         = useState('');
   const [emailToken, setEmailToken]     = useState('');
-  const [walletLabel, setWalletLabel]   = useState('내 xLOT 지갑');
+  const [walletLabel, setWalletLabel]   = useState('내 took 지갑');
   const [mnemonic, setMnemonic]         = useState('');
   const [mnemonicRevealed, setMnemonicRevealed] = useState(false);
   const [copied, setCopied]             = useState(false);
@@ -211,7 +211,7 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
               <ShieldCheck size={18} className="text-cyan-400" />
             </div>
             <div>
-              <p className="text-sm font-black text-white">xLOT 비수탁 지갑 생성</p>
+              <p className="text-sm font-black text-white">took 비수탁 지갑 생성</p>
               <p className="text-xs text-slate-500">Triple-Shield · 2-of-3 복구</p>
             </div>
           </div>
@@ -250,7 +250,7 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
               <label className="text-xs text-slate-400 font-bold mb-1 block">지갑 이름</label>
               <input value={walletLabel} onChange={e => setWalletLabel(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50"
-                placeholder="내 xLOT 지갑" />
+                placeholder="내 took 지갑" />
             </div>
 
             <div>
@@ -293,7 +293,7 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
 
             <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3">
               <p className="text-[10px] text-cyan-300 leading-relaxed">
-                ⚠️ 비밀번호는 xLOT 서버에 저장되지 않습니다. 분실 시 휴대폰 + 이메일로 복구 가능합니다.
+                ⚠️ 비밀번호는 took 서버에 저장되지 않습니다. 분실 시 휴대폰 + 이메일로 복구 가능합니다.
               </p>
             </div>
 
@@ -460,7 +460,7 @@ export function XLOTWalletCreateModal({ onClose, onSuccess, loginMode = false }:
             <Loader2 size={36} className="animate-spin text-cyan-400" />
             <div className="text-center space-y-1">
               <p className="text-sm font-black text-white">지갑 생성 중...</p>
-              <p className="text-xs text-slate-500">니모닉 생성 → SSS 3분할 → 암호화 → 저장</p>
+              <p className="text-xs text-slate-500">니모닉 생성 → SAR 3분할 → 암호화 → 저장</p>
             </div>
             <div className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2 text-[10px] text-slate-500">
               <p>✓ Share A — 비밀번호로 암호화</p>

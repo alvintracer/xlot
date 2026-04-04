@@ -163,7 +163,7 @@ export function WalletSyncModal({
         userId, walletAddress, keys, p, phoneToken, emailToken,
       );
       onSuccess?.();
-      alert('✅ SSS Triple-Shield로 분산 저장 완료!\n(비밀번호 + 휴대폰 + 이메일 3조각)');
+      alert('✅ SAR Triple-Shield로 분산 저장 완료!\n(비밀번호 + 휴대폰 + 이메일 3조각)');
       onClose();
     } catch (e: any) {
       setError(e.message || '저장 실패');

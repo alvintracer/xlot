@@ -21,7 +21,7 @@ import { WalletSyncModal } from "./WalletSyncModal";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 
 // Utils & Services
-import { getSpecificProvider } from "../utils/walletProviderUtils"; 
+import { getSpecificProvider } from "../utils/walletProviderUtils";
 import { getMyWallets, deleteWallet } from "../services/walletService";
 import { fetchCryptoPrices } from "../services/priceService";
 import { hasLocalPrivateKey } from "../utils/SolanaLocalWallet";
@@ -483,8 +483,8 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
 
   const getWalletStyle = (type: string) => {
     switch (type) {
-      case 'XLOT': return { bg: 'bg-transparent', text: '', icon: <div className="rounded-full overflow-hidden p-0.5 bg-gradient-to-br from-cyan-500 to-blue-500 shadow-lg"><img src="/icon-192.png" alt="xLOT" className="w-9 h-9 object-cover rounded-full bg-slate-900" /></div> };
-      case 'XLOT_SSS': return { bg: 'bg-transparent', text: '', icon: <div className="rounded-full overflow-hidden p-0.5 bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg"><img src="/icon-192.png" alt="xLOT SSS" className="w-9 h-9 object-cover rounded-full bg-slate-900" /></div> };
+      case 'XLOT': return { bg: 'bg-transparent', text: '', icon: <div className="rounded-full overflow-hidden p-0.5 bg-gradient-to-br from-cyan-500 to-blue-500 shadow-lg"><img src="/icon-192.png" alt="took" className="w-9 h-9 object-cover rounded-full bg-slate-900" /></div> };
+      case 'XLOT_SSS': return { bg: 'bg-transparent', text: '', icon: <div className="rounded-full overflow-hidden p-0.5 bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg"><img src="/icon-192.png" alt="took SAR" className="w-9 h-9 object-cover rounded-full bg-slate-900" /></div> };
       case 'METAMASK': return { bg: 'bg-orange-500/20', text: 'text-orange-500', icon: <span className="text-lg">🦊</span> };
       case 'RABBY': return { bg: 'bg-blue-500/20', text: 'text-blue-500', icon: <span className="text-lg">🐰</span> };
       case 'PHANTOM': return { bg: 'bg-purple-500/20', text: 'text-purple-400', icon: <span className="text-lg">👻</span> };
@@ -675,7 +675,7 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
       <header className="mb-6 mt-2">
          {/* Header UI */}
          <div className="flex justify-between items-start mb-6 relative">
-            <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 mt-0.5">xLOT</h1>
+            <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 mt-0.5">took</h1>
             
             <ProfileHeader 
               wallets={wallets}
@@ -787,7 +787,7 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                                <span className="px-1.5 py-0.5 rounded-md text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">MPC</span>
                              )}
                              {wallet.wallet_type === 'XLOT_SSS' && (
-                               <span className="px-1.5 py-0.5 rounded-md text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20">SSS</span>
+                               <span className="px-1.5 py-0.5 rounded-md text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20">SAR</span>
                              )}
                            </h3>
                            

@@ -131,7 +131,7 @@ export function ExtensionAccountSelector() {
                       : 'bg-cyan-500/20 border border-cyan-500/30'
                   }`}>
                     {acct.type === 'XLOT_SSS'
-                      ? <Shield size={13} className="text-cyan-400" />
+                      ? <ShieldCheck size={13} className="text-cyan-400" />
                       : <Zap size={13} className="text-cyan-400" />
                     }
                   </div>

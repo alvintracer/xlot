@@ -36,6 +36,9 @@ import type { TravelRulePayload } from '../services/travelRuleService';
 import { supabase } from '../lib/supabase';
 import { ethers } from 'ethers';
 import { KYCRegistrationModal } from '../components/KYCRegistrationModal';
+import { ProfileHeader } from '../components/ProfileHeader';
+import { DeviceNameModal } from '../components/DeviceNameModal';
+import { getDeviceId, registerCurrentDevice, getMyDevices } from '../utils/deviceService';
 
 // ── 탭 타입 ──────────────────────────────────────────────────
 type MainTab = 'activity' | 'travel_rule' | 'tax';
@@ -95,6 +98,13 @@ export function ActivityPage() {
   const [taxLoading, setTaxLoading]   = useState(false);
   const [showKYCReg, setShowKYCReg]   = useState(false);
 
+  // 기기 관리 및 지갑 메뉴용 상태
+  const [currentDeviceName, setCurrentDeviceName] = useState("");
+  const [allDevices, setAllDevices] = useState<any[]>([]); 
+  const [isDeviceNameModalOpen, setIsDeviceNameModalOpen] = useState(false);
+  const currentDeviceId = getDeviceId(); 
+  const [activeWalletId, setActiveWalletId] = useState<string | null>(localStorage.getItem("xlot_active_wallet_id"));
+
   const userId = smartAccount?.address || '';
 
   // ── PC 판별 ──────────────────────────────────────────────
@@ -112,9 +122,15 @@ export function ActivityPage() {
     Promise.all([
       getMyWallets(userId),
       getCredentials(userId),
-    ]).then(([ws, creds]) => {
+      getMyDevices(userId),
+      registerCurrentDevice(userId)
+    ]).then(([ws, creds, devices, currentDevice]) => {
       setWallets(ws);
       setCredential(creds.find(c => c.type === 'NON_SANCTIONED' && c.status === 'ACTIVE') || null);
+      setAllDevices(devices);
+      if (currentDevice && currentDevice.nickname) {
+        setCurrentDeviceName(currentDevice.nickname);
+      }
     }).finally(() => setProfileLoading(false));
   }, [userId]);
 
@@ -257,24 +273,32 @@ export function ActivityPage() {
       <div className={`bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 ${isPC ? '' : 'mb-4'}`}>
 
         {/* 계정 헤더 */}
-        <div className="flex items-start gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(34,211,238,0.3)]">
-            <User size={22} className="text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
+        <div className="flex items-start gap-4">
+          <ProfileHeader 
+             wallets={wallets}
+             activeWalletId={activeWalletId}
+             onSelectActiveWallet={(id) => {
+               setActiveWalletId(id);
+               localStorage.setItem("xlot_active_wallet_id", id);
+             }}
+             allDevices={allDevices}
+             currentDeviceName={currentDeviceName}
+             currentDeviceId={currentDeviceId}
+             onDeviceRename={() => setIsDeviceNameModalOpen(true)}
+          />
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
             <p className="text-sm font-black text-white">내 계정</p>
-            <p className="text-[10px] text-slate-500 font-mono truncate mt-0.5">
-              {userId.slice(0,10)}...{userId.slice(-6)}
-            </p>
             <p className="text-[10px] text-slate-600 mt-0.5">{wallets.length}개 지갑 슬롯</p>
           </div>
-          {/* 총 자산 */}
-          <div className="text-right shrink-0">
-            <p className="text-[10px] text-slate-500">총 자산</p>
-            <p className="text-base font-black text-white">
-              ₩{(totalValue / 10000).toFixed(0)}만
-            </p>
-          </div>
+        </div>
+
+        {/* 총 자산 (실제 잔액 세부 표시) */}
+        <div className="mt-5 mb-2">
+           <p className="text-xs text-slate-500 font-bold mb-1">총 보유 자산</p>
+           <p className="text-3xl font-black text-white tracking-tight">
+             <span className="text-xl text-slate-500 mr-2">≈</span>
+             ₩ {totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+           </p>
         </div>
 
         {/* KYC 상태 */}
@@ -312,19 +336,21 @@ export function ActivityPage() {
           {sssWallet && (
             <div className="flex items-center gap-2 px-3 py-2 bg-slate-950 rounded-xl">
               <div className="w-5 h-5 rounded-full overflow-hidden p-[1px] bg-gradient-to-br from-emerald-500 to-teal-500 shadow-sm shrink-0">
-                <img src="/icon-192.png" alt="xLOT SSS" className="w-full h-full object-cover rounded-full bg-slate-900" />
+                <img src="/icon-192.png" alt="took SAR" className="w-full h-full object-cover rounded-full bg-slate-900" />
               </div>
               <p className="text-[11px] font-bold text-emerald-400 flex-1 truncate">{sssWallet.label}</p>
-              <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">SSS</span>
+              <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">SAR</span>
             </div>
           )}
           {mainWallet && mainWallet !== sssWallet && (
             <div className="flex items-center gap-2 px-3 py-2 bg-slate-950 rounded-xl">
               <div className="w-5 h-5 rounded-full overflow-hidden p-[1px] bg-gradient-to-br from-cyan-500 to-blue-500 shadow-sm shrink-0">
-                <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-cover rounded-full bg-slate-900" />
+                <img src="/icon-192.png" alt="took" className="w-full h-full object-cover rounded-full bg-slate-900" />
               </div>
               <p className="text-[11px] font-bold text-cyan-400 flex-1 truncate">{mainWallet.label}</p>
-              <span className="text-[9px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.5 rounded-full">AA</span>
+              <span className="text-[9px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.5 rounded-full">
+                {mainWallet.wallet_type === 'XLOT' ? 'MPC' : 'Web3'}
+              </span>
             </div>
           )}
         </div>
@@ -774,6 +800,11 @@ export function ActivityPage() {
             onClose={() => setShowKYCReg(false)}
             onSuccess={() => window.location.reload()}
           />
+        )}
+        {isDeviceNameModalOpen && (
+          <div className="relative z-[200]">
+            <DeviceNameModal onSuccess={() => window.location.reload()} />
+          </div>
         )}
       </div>
     </div>

@@ -438,7 +438,7 @@ export function generateTRPdfHtml(
 <table>
   <tr><td>성명</td><td>${payload.originatorName || '—'}</td></tr>
   <tr><td>가상자산 주소</td><td class="ref">${payload.originatorAddress}</td></tr>
-  <tr><td>VASP</td><td>xLOT</td></tr>
+  <tr><td>VASP</td><td>took</td></tr>
 </table>
 
 <h2>수취인 정보 (Beneficiary)</h2>
@@ -465,8 +465,8 @@ ${purpose === 'exchange' ? `
 </table>` : ''}
 
 <div class="footer">
-  <div class="stamp">xLOT<br/>전자 확인</div>
-  <p>본 확인서는 xLOT 비수탁 지갑 서비스의 Travel Rule 시스템에 의해 자동 생성된 문서입니다.</p>
+  <div class="stamp">took<br/>전자 확인</div>
+  <p>본 확인서는 took 비수탁 지갑 서비스의 Travel Rule 시스템에 의해 자동 생성된 문서입니다.</p>
   <p>특정금융정보법 제5조의2에 따른 가상자산 이전 기록이며, 당사 서버에 암호화 보관됩니다.</p>
   <p>문의: support@xlot.io</p>
 </div>

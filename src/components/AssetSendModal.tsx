@@ -33,8 +33,9 @@ const amoyChain = defineChain(80002);
 // ✨ [추가] ShieldAlert, SearchCheck 등 아이콘 추가
 import { 
   X, Loader2, ChevronDown, Wallet, ArrowRightLeft, Smartphone, 
-  Copy, Check, ShieldCheck, AlertTriangle, Search, CheckCircle2 
+  Copy, Check, ShieldCheck, AlertTriangle, Search, CheckCircle2, ExternalLink
 } from "lucide-react";
+import toast from 'react-hot-toast';
 
 import { getMyWallets } from "../services/walletService";
 import type { WalletSlot, WalletAsset } from "../services/walletService";
@@ -103,6 +104,14 @@ export function SendModal({ onClose }: { onClose: () => void }) {
   const [travelRuleRefId, setTravelRuleRefId]         = useState<string | null>(null);
   const [travelRulePayload, setTravelRulePayload]     = useState<TravelRulePayload | null>(null);
   const [sssSigningPurpose, setSssSigningPurpose] = useState('');
+
+  // === JIT 가스비 대납 진행 상태 ===
+  const [jitStep, setJitStep] = useState<'idle' | 'checking' | 'funding' | 'waiting' | 'ready' | 'error' | 'success'>('idle');
+  const [jitFeeUsdt, setJitFeeUsdt] = useState(0);
+  const [jitMessage, setJitMessage] = useState('');
+  const [jitTxHash, setJitTxHash] = useState('');
+  // 전체 체인 공통 성공 상태
+  const [txResult, setTxResult] = useState<{ hash: string; chain: string; explorerUrl: string } | null>(null);
 
   // === Blockchain Hooks ===
   const smartAccount = useActiveAccount();
@@ -216,6 +225,41 @@ export function SendModal({ onClose }: { onClose: () => void }) {
     else return `≈ ${finalTokenAmount} ${selectedAsset.symbol}`;
   }, [finalTokenAmount, inputMode, selectedAsset, prices]);
 
+  // ── 수수료 / 예상 수신 금액 계산 ──
+  const feeEstimate = useMemo(() => {
+    if (!selectedAsset || !finalTokenAmount) return null;
+    const amount = parseFloat(finalTokenAmount);
+    if (isNaN(amount) || amount <= 0) return null;
+
+    const sym = selectedAsset.symbol.toUpperCase();
+    const net = selectedAsset.network;
+
+    // USDT / USDC (Tron 라우터) — 수수료: max(0.2%, 2 USDT)
+    if ((sym === 'USDT' || sym === 'USDC') && net === 'Tron') {
+      const byRate = amount * 0.002;
+      const fee = Math.max(byRate, 2.0);
+      const receive = amount - fee;
+      if (receive <= 0) return { type: 'error' as const, fee, receive: 0 };
+      return { type: 'stablecoin' as const, fee: parseFloat(fee.toFixed(2)), receive: parseFloat(receive.toFixed(2)), sym };
+    }
+
+    // 네이티브 코인 — 정적 추정 (API 호출 없음)
+    if (selectedAsset.isNative) {
+      const gasMap: Record<string, { label: string; feeToken: number }> = {
+        'BTC':  { label: '~1,000 sat',   feeToken: 0.00001 },
+        'ETH':  { label: '~$0.5–2',      feeToken: 0 },
+        'SOL':  { label: '~0.000005 SOL', feeToken: 0.000005 },
+        'TRX':  { label: '~1–3 TRX',     feeToken: 0 },
+        'MATIC': { label: '~0.001 MATIC', feeToken: 0 },
+        'POL':  { label: '~0.001 POL',   feeToken: 0 },
+      };
+      const info = gasMap[sym];
+      if (info) return { type: 'native' as const, label: info.label, sym };
+    }
+
+    return null;
+  }, [finalTokenAmount, selectedAsset]);
+
 
   // ✨ [신규] 주소 검증 함수 (토스 스타일)
   const checkAddressRisk = async () => {
@@ -313,7 +357,7 @@ export function SendModal({ onClose }: { onClose: () => void }) {
 
       } catch (err: any) {
         console.error(err);
-        alert("송금 실패: " + (err.message || err));
+        toast.error("송금 실패: " + (err.message || err));
       } finally {
         setIsLoading(false);
       }
@@ -332,7 +376,7 @@ export function SendModal({ onClose }: { onClose: () => void }) {
 
     // B. 지갑 주소 송금
     if (sendType === 'ADDRESS') {
-        if (!toAddress) return alert("받는 주소를 입력해주세요.");
+        if (!toAddress) return toast.error("받는 주소를 입력해주세요.");
         
         try {
             // ── XLOT_SSS: SSS 서명 모달 경유 ──────────────────────────
@@ -341,7 +385,6 @@ export function SendModal({ onClose }: { onClose: () => void }) {
               if (selectedAsset.network === 'Solana') {
                 const currentRefId = travelRuleRefId;
                 const currentPayload = travelRulePayload;
-                // SPL 토큰 지원 시 hasSol 분기 필요하나, 현재는 Native만 지원됨
                 setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
                   try {
                     const result = await sendSOL(mn, toAddress, parseFloat(finalTokenAmount), currentRefId || undefined);
@@ -352,59 +395,123 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                         await saveTravelRulePackage(pkg, result.txHash, 'SOL');
                       } catch(e) { console.error('TR 저장 실패:', e); }
                     }
-                    alert(`SOL 전송 완료! Tx: ${result.txHash.slice(0,20)}...`);
-                  } catch (e: any) { alert("SOL 전송 실패: " + e.message); }
+                    const explorerUrl = `https://solscan.io/tx/${result.txHash}`;
+                    setTxResult({ hash: result.txHash, chain: 'SOL', explorerUrl });
+                    toast.success(
+                      (t) => <span onClick={() => { window.open(explorerUrl, '_blank'); toast.dismiss(t.id); }} className="cursor-pointer">
+                        ✅ SOL 전송 성공! 클릭해서 확인
+                      </span>,
+                      { duration: 10000, id: result.txHash }
+                    );
+                    onClose();
+                  } catch (e: any) { toast.error('SOL 전송 실패: ' + e.message); }
                 });
                 setSssSigningPurpose(`${finalTokenAmount} SOL → ${toAddress.slice(0,8)}...`);
                 setSssSigningOpen(true);
                 return;
               }
-              // ── TRX 및 TRC20 전송 (with JIT 가스 대납) ──────────────────────────
+              // ── TRX 및 TRC20 전송 (xLOT Router 경유) ──────────────────────────
               if (selectedAsset.network === 'Tron') {
                 const isToken = !selectedAsset.isNative && !!selectedAsset.tokenAddress;
-                const trxBalance = selectedWallet.balances?.trx || 0;
-                
-                // JIT 가스비 필요 여부 (트론에서는 TRC20 전송 시 통상 15~30 TRX 소모)
-                const needsJit = isToken && trxBalance < 15;
                 const currentRefId = travelRuleRefId;
                 const currentPayload = travelRulePayload;
                 
                 setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
                   try {
-                    let finalAmountToSend = parseFloat(finalTokenAmount);
+                    const sendAmount = parseFloat(finalTokenAmount);
+                    setJitStep('checking');
+                    setJitMessage('네트워크 상태 확인 중...');
+
+                    // ── 1단계: 실시간 TRX + 에너지 상태 조회 ──
+                    let trxBal = 0;
+                    let hasEnergy = false;
+                    const tronKeysStr = import.meta.env.VITE_TRONSCAN_API_KEYS || import.meta.env.VITE_TRON_PRO_API_KEY || '';
+                    const apiKeys = tronKeysStr.split(',').map((k: string) => k.trim()).filter(Boolean);
+                    
+                    if (isToken) {
+                        try {
+                            const headers: HeadersInit = { 'Content-Type': 'application/json' };
+                            if (apiKeys.length > 0) headers['TRON-PRO-API-KEY'] = apiKeys[Math.floor(Math.random() * apiKeys.length)];
+                            const checkRes = await fetch(`https://api.trongrid.io/v1/accounts/${selectedWallet.addresses.trx}`, { headers });
+                            const checkData = await checkRes.json();
+                            if (checkData?.data?.[0]) {
+                                const acc = checkData.data[0];
+                                trxBal = (acc.balance || 0) / 1_000_000;
+                                const ownEng = acc.account_resource?.energy_limit || 0;
+                                const delSun = acc.account_resource?.acquired_delegated_frozenV2_balance_for_energy || 0;
+                                hasEnergy = ownEng >= 60000 || delSun > 0;
+                            }
+                        } catch (_) {}
+                    }
+                    console.log(`[Tron] trxBal=${trxBal}, hasEnergy=${hasEnergy}`);
+
+                    // ── 2단계: JIT 필요 여부 (라우터 = approve + transferWithFee 2tx) ──
+                    // 에너지 100k+ 와 대역폭(TRX ~2) 모두 필요
+                    const needsJit = isToken && (!hasEnergy || trxBal < 2);
 
                     if (needsJit) {
-                        alert("TRX 가스비가 부족하여 백그라운드 JIT 선지원을 요청합니다. (최대 15초 소요)");
-                        
-                        // ⭐️ 트론 USDT 전송은 최대 약 30 TRX (에너지 64,895)가 소모됩니다.
+                        // 라우터 수수료로 JIT 비용 충당 → 별도 USDT 차감 없음
+                        const routerFeeDisplay = Math.max(sendAmount * 0.002, 2.0);
+                        setJitFeeUsdt(routerFeeDisplay);
+                        setJitMessage(`가스비 지원 요청 중... (라우터 수수료 ${routerFeeDisplay.toFixed(2)} USDT 포함)`);
+                        setJitStep('funding');
+
+                        // JIT 요청 → 엣지 펑션이 에너지 렌탈 + TRX 대역폭 전송
                         await requestTronJit(selectedWallet.addresses.trx || '', 30);
-                        
-                        // 수수료 0.1 USDT 차감
-                        finalAmountToSend = finalAmountToSend - 0.1;
-                        if (finalAmountToSend <= 0) throw new Error("전송 금액이 JIT 수수료(0.1 USDT)보다 작습니다.");
-                        
-                        // ⭐️ Trongrid API 429(Rate Limit) 에러 방지를 위해 15초 정적 대기
-                        console.log("Waiting 15s for JIT TRX arrival...");
-                        await new Promise(r => setTimeout(r, 15000));
-                        console.log("Wait complete, proceeding with TRC20 transfer.");
+
+                        // 도착 확인 폴링
+                        setJitStep('waiting');
+                        setJitMessage('에너지/TRX 도착 확인 중...');
+                        let arrived = false;
+                        for (let i = 0; i < 20; i++) {
+                            try {
+                                const h: HeadersInit = { 'Content-Type': 'application/json' };
+                                if (apiKeys.length > 0) h['TRON-PRO-API-KEY'] = apiKeys[i % apiKeys.length];
+                                const r = await fetch(`https://api.trongrid.io/v1/accounts/${selectedWallet.addresses.trx}`, { headers: h });
+                                const d = await r.json();
+                                if (d?.data?.[0]) {
+                                    const a = d.data[0];
+                                    const tb = (a.balance || 0) / 1_000_000;
+                                    const oE = a.account_resource?.energy_limit || 0;
+                                    const dE = a.account_resource?.acquired_delegated_frozenV2_balance_for_energy || 0;
+                                    // 에너지 확보 + TRX >= 1 이면 진행 가능
+                                    if ((oE >= 60000 || dE > 0) && tb >= 1) { arrived = true; break; }
+                                }
+                            } catch (_) {}
+                            await new Promise(r => setTimeout(r, 3000));
+                        }
+                        if (!arrived) { setJitStep('error'); throw new Error('가스비 지원이 시간 내 도착하지 않았습니다.'); }
+                        await new Promise(r => setTimeout(r, 3000));
+                        setJitStep('ready');
+                        setJitMessage('가스비 준비 완료! 전송 진행 중...');
+                    } else if (isToken) {
+                        // JIT 불필요 — 라우터 수수료만 표시
+                        const routerFeeDisplay = Math.max(sendAmount * 0.002, 2.0);
+                        setJitFeeUsdt(routerFeeDisplay);
+                        setJitStep('ready');
+                        setJitMessage(`라우터 수수료 ${routerFeeDisplay.toFixed(2)} USDT 포함`);
+                    } else {
+                        setJitStep('idle');
                     }
 
+                    // ── 3단계: 실제 전송 ──
                     let txHash = '';
+                    let fee: number | undefined;
                     if (!isToken) {
-                        const res = await sendTRX(mn, toAddress, finalAmountToSend, currentRefId || undefined);
+                        // 네이티브 TRX 전송 — 라우터 미사용
+                        const res = await sendTRX(mn, toAddress, sendAmount, currentRefId || undefined);
                         txHash = res.txHash;
                     } else {
-                        const feeCollector = import.meta.env.VITE_TRON_FEE_COLLECTOR || "TUniCaBXQxTsUE5tK7SKxaPn6FwWwb1dup";
+                        // TRC20 전송 — xLOT Router 경유 (수수료 on-chain 자동 징수)
+                        setJitMessage('took Router 경유 전송 중...');
                         const res = await sendTRC20(
-                            mn, 
-                            toAddress, 
-                            selectedAsset.tokenAddress!, 
-                            finalAmountToSend,
-                            needsJit ? 0.1 : 0,  // 차감될 가스비 대납 수수료
-                            needsJit ? feeCollector : "", 
+                            mn, toAddress, selectedAsset.tokenAddress!,
+                            sendAmount,   // 원래 전체 금액 → 라우터가 수수료 자동 차감
+                            true,         // useRouter = true
                             currentRefId || undefined
                         );
                         txHash = res.txHash;
+                        fee = res.fee;
                     }
 
                     if (currentRefId && currentPayload) {
@@ -414,11 +521,15 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                         await saveTravelRulePackage(pkg, txHash, 'TRX');
                       } catch(e) { console.error('TR 저장 실패:', e); }
                     }
-                    alert(`Tron 전송 완료! Tx: ${txHash.slice(0,20)}...`);
-                  } catch(e: any) { alert("Tron 전송 실패: " + e.message); }
+
+                    setJitTxHash(txHash);
+                    setJitStep('success');
+                    const actualSent = fee ? (sendAmount - fee).toFixed(2) : sendAmount.toFixed(2);
+                    setJitMessage(`전송 완료! ${actualSent} ${selectedAsset.symbol} → 수취인`);
+                  } catch(e: any) { setJitStep('error'); setJitMessage(e.message); }
                 });
                 
-                setSssSigningPurpose(`${needsJit ? '[JIT 요청] ' : ''}${finalTokenAmount} ${selectedAsset.symbol} → ${toAddress.slice(0,8)}...`);
+                setSssSigningPurpose(`${finalTokenAmount} ${selectedAsset.symbol} → ${toAddress.slice(0,8)}...`);
                 setSssSigningOpen(true);
                 return;
               }
@@ -436,15 +547,23 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                         await saveTravelRulePackage(pkg, result.txHash, 'BTC');
                       } catch(e) { console.error('TR 저장 실패:', e); }
                     }
-                    alert(`BTC 전송 완료! Tx: ${result.txHash.slice(0,20)}...`);
-                  } catch (e: any) { alert("BTC 전송 실패: " + e.message); }
+                    const explorerUrl = `https://mempool.space/tx/${result.txHash}`;
+                    setTxResult({ hash: result.txHash, chain: 'BTC', explorerUrl });
+                    toast.success(
+                      (t) => <span onClick={() => { window.open(explorerUrl, '_blank'); toast.dismiss(t.id); }} className="cursor-pointer">
+                        ✅ BTC 전송 성공! 클릭해서 확인
+                      </span>,
+                      { duration: 10000, id: result.txHash }
+                    );
+                    onClose();
+                  } catch (e: any) { toast.error('BTC 전송 실패: ' + e.message); }
                 });
                 setSssSigningPurpose(`${finalTokenAmount} BTC → ${toAddress.slice(0,8)}...`);
                 setSssSigningOpen(true);
                 return;
               }
                 const evmAddress = selectedWallet.addresses.evm;
-                if (!evmAddress) return alert('EVM 주소를 찾을 수 없습니다');
+                if (!evmAddress) return toast.error('EVM 주소를 찾을 수 없습니다');
 
                 // EVM Permit 체크 로직 (수수료 대납 오프체인 서명 플로우)
                 let tAddr = selectedAsset.tokenAddress || '';
@@ -461,28 +580,32 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                     setSssSigningPurpose(`[가스비 무료] ${finalTokenAmount} ${selectedAsset.symbol} → ${toAddress.slice(0,8)}...`);
                     setSssPendingTx(() => async (wallet: ethers.Wallet, _mn: string) => {
                         try {
-                            const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hr 여유
-                            const amountWei = ethers.parseUnits(finalTokenAmount, 6); // USDC/PYUSD는 주로 6자리
-
-                            // 1. Off-chain 대납 서명 생성 (nonce 조회를 위해 provider 연결 필요)
+                            const deadline = Math.floor(Date.now() / 1000) + 3600;
+                            const amountWei = ethers.parseUnits(finalTokenAmount, 6);
                             const provider = new ethers.JsonRpcProvider(permitRpcUrl);
                             const connected = wallet.connect(provider);
                             const { v, r, s } = await signPermit(
                                 connected, permitDetail, relayerAddress, amountWei.toString(), deadline
                             );
-                            
-                            // 2. Edge Function (Relayer) 에 전송 위임
                             const txResult = await relayPermitTransfer({
                                 network: selectedAsset.network,
                                 tokenAddress: permitDetail.tokenAddress,
                                 owner: wallet.address,
                                 toAddress,
-                                amount: finalTokenAmount, // raw string
+                                amount: finalTokenAmount,
                                 deadline, v, r, s
                             });
-
-                            alert(`서명 대납 전송 완료! Tx: ${(txResult as any).txHash?.slice(0, 20)}...`);
-                        } catch (e: any) { alert("대납 전송(Permit) 실패: " + e.message); }
+                            const hash = (txResult as any).txHash || '';
+                            const explorerUrl = `https://etherscan.io/tx/${hash}`;
+                            setTxResult({ hash, chain: selectedAsset.network, explorerUrl });
+                            toast.success(
+                              (t) => <span onClick={() => { window.open(explorerUrl, '_blank'); toast.dismiss(t.id); }} className="cursor-pointer">
+                                ✅ {selectedAsset.symbol} 전송 성공! 클릭해서 확인
+                              </span>,
+                              { duration: 10000, id: hash }
+                            );
+                            onClose();
+                        } catch (e: any) { toast.error('대납 전송(Permit) 실패: ' + e.message); }
                     });
                     setSssSigningOpen(true);
                     return;
@@ -506,10 +629,15 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                 setSssPendingTx(() => async (wallet: ethers.Wallet, _mn: string) => {
                     const provider = new ethers.JsonRpcProvider(rpcUrl);
                     const connected = wallet.connect(provider);
-
-                    // Travel Rule calldata 준비
                     const currentRefId = travelRuleRefId;
                     const trData = currentRefId ? encodeReferenceIdCalldata(currentRefId) : undefined;
+
+                    let hash = '';
+                    let explorerBase = 'https://etherscan.io';
+                    if (selectedAsset.network === 'Polygon') explorerBase = 'https://polygonscan.com';
+                    else if (selectedAsset.network === 'Base') explorerBase = 'https://basescan.org';
+                    else if (selectedAsset.network === 'Arbitrum') explorerBase = 'https://arbiscan.io';
+                    else if (selectedAsset.network === 'Sepolia') explorerBase = 'https://sepolia.etherscan.io';
 
                     if (selectedAsset.isNative) {
                         const tx = await connected.sendTransaction({
@@ -517,15 +645,13 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                             value: ethers.parseEther(finalTokenAmount),
                             ...(trData ? { data: trData } : {}),
                         });
-                        await tx.wait();
-                        // TR 패키지 저장 + tx_hash 업데이트
+                        hash = tx.hash;
+                        // fire-and-forget: wait() 대기하지 않고 제출 후 바로 성공 안내
                         if (currentRefId && travelRulePayload) {
-                          try {
-                            const pkg = await encryptTravelRuleData(travelRulePayload, currentRefId);
-                            await saveTravelRulePackage(pkg, tx.hash, selectedAsset.network);
-                          } catch(e) { console.error('TR 저장 실패 (non-blocking):', e); }
+                            encryptTravelRuleData(travelRulePayload, currentRefId)
+                              .then(pkg => saveTravelRulePackage(pkg, hash, selectedAsset.network))
+                              .catch(e => console.error('TR 저장 실패:', e));
                         }
-                        alert(`전송 완료! Tx: ${tx.hash.slice(0, 20)}...`);
                     } else if (selectedAsset.tokenAddress) {
                         const abi = [
                             'function transfer(address to, uint256 amount) returns (bool)',
@@ -535,20 +661,28 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                         let decimals = 18;
                         try { decimals = Number(await contract.decimals()); } catch (e) { console.error("Decimals fetch error:", e); }
                         const tx = await contract.transfer(toAddress, ethers.parseUnits(finalTokenAmount, decimals));
-                        await tx.wait();
+                        hash = tx.hash;
                         if (currentRefId && travelRulePayload) {
-                          try {
-                            const pkg = await encryptTravelRuleData(travelRulePayload, currentRefId);
-                            await saveTravelRulePackage(pkg, tx.hash, selectedAsset.network);
-                          } catch(e) { console.error('TR 저장 실패 (non-blocking):', e); }
+                            encryptTravelRuleData(travelRulePayload, currentRefId)
+                              .then(pkg => saveTravelRulePackage(pkg, hash, selectedAsset.network))
+                              .catch(e => console.error('TR 저장 실패:', e));
                         }
-                        alert(`전송 완료! Tx: ${tx.hash.slice(0, 20)}...`);
                     } else {
                         throw new Error('전송 가능한 자산이 없습니다');
                     }
+
+                    const explorerUrl = `${explorerBase}/tx/${hash}`;
+                    setTxResult({ hash, chain: selectedAsset.network, explorerUrl });
+                    toast.success(
+                      (t) => <span onClick={() => { window.open(explorerUrl, '_blank'); toast.dismiss(t.id); }} className="cursor-pointer">
+                        ✅ {selectedAsset.symbol} 전송 제출! 클릭해서 확인
+                      </span>,
+                      { duration: 10000, id: hash }
+                    );
+                    onClose();
                 });
                 setSssSigningOpen(true);
-                return; // 실제 tx는 handleSSSSigningComplete에서 실행
+                return;
             }
 
             // ── 기존 XLOT (Thirdweb AA) ───────────────────────────────
@@ -588,7 +722,7 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                 sendWagmi({ to: toAddress as `0x${string}`, value: parseEther(finalTokenAmount) });
             }
         } catch (err: any) {
-            alert("전송 실패: " + err.message);
+            toast.error('전송 실패: ' + err.message);
         }
     }
   };
@@ -601,7 +735,7 @@ export function SendModal({ onClose }: { onClose: () => void }) {
       setIsLoading(true);
       await sssPendingTx(result.wallet, result.mnemonic);
     } catch (e: any) {
-      alert('전송 실패: ' + (e.message || e));
+      toast.error('전송 실패: ' + (e.message || e));
     } finally {
       result.cleanup();
       setIsLoading(false);
@@ -691,27 +825,51 @@ export function SendModal({ onClose }: { onClose: () => void }) {
               </div>
               <p className="text-right text-xs text-slate-500 mt-2 font-mono h-4">{convertedValue}</p>
 
-              {/* 자산별 특수 안내 (USDT EVM 제한, Tron JIT 등) */}
+              {/* 금액 입력 후 수수료·수신 금액 요약 */}
+              {feeEstimate && (
+                <div className="mt-2 animate-fade-in">
+                  {feeEstimate.type === 'stablecoin' && (
+                    <div className={`rounded-xl px-3 py-2.5 border flex flex-col gap-1 ${
+                      feeEstimate.receive <= 0
+                        ? 'bg-red-500/10 border-red-500/20'
+                        : 'bg-slate-950 border-slate-800'
+                    }`}>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-500">수수료 (max 0.2%, 최소 {feeEstimate.fee} {feeEstimate.sym})</span>
+                        <span className="text-amber-400 font-semibold">−{feeEstimate.fee} {feeEstimate.sym}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-bold border-t border-slate-800 pt-1.5 mt-0.5">
+                        <span className="text-slate-400">예상 수신액</span>
+                        <span className={feeEstimate.receive <= 0 ? 'text-red-400' : 'text-emerald-400'}>
+                          {feeEstimate.receive > 0 ? `${feeEstimate.receive} ${feeEstimate.sym}` : '금액 부족'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {feeEstimate.type === 'native' && (
+                    <p className="text-right text-[11px] text-slate-500">
+                      예상 가스비 <span className="text-slate-400 font-medium">{feeEstimate.label}</span>
+                    </p>
+                  )}
+                  {feeEstimate.type === 'error' && (
+                    <p className="text-xs text-red-400 text-center">전송 금액이 최소 수수료(2 USDT)보다 작습니다.</p>
+                  )}
+                </div>
+              )}
+
+              {/* 자산별 안내 */}
               {selectedAsset?.symbol === 'USDT' && ['Ethereum', 'Polygon', 'Sepolia', 'Amoy', 'Base', 'Arbitrum'].includes(selectedAsset.network) && (
                   <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-xl flex items-start gap-2 mt-2 animate-fade-in-up">
-                      <AlertTriangle size={16} className="text-blue-400 mt-0.5 shrink-0" />
-                      <div>
-                          <p className="text-blue-400 text-xs font-bold mb-0.5">EVM 계열 USDT 전송 제한 ⚠️</p>
-                          <p className="text-slate-300 text-[11px] leading-tight">
-                              수수료 대납 기능(Permit) 미지원 토큰입니다. 전송 시 네트워크 <b>네이티브 코인(ETH, POL 등)이 가스비로 반드시 필요</b>합니다. 가스비 통제가 쉬운 <b>트론(Tron) 사용을 권장</b>합니다.
-                          </p>
-                      </div>
+                      <AlertTriangle size={14} className="text-blue-400 mt-0.5 shrink-0" />
+                      <p className="text-slate-400 text-[11px] leading-tight">
+                          EVM USDT는 가스비 대납 미지원 — <b className="text-slate-300">네이티브 코인(ETH 등) 필요</b>. 트론(Tron) 사용 권장.
+                      </p>
                   </div>
               )}
               {selectedAsset?.network === 'Tron' && !selectedAsset.isNative && (
-                  <div className="bg-cyan-500/10 border border-cyan-500/20 p-3 rounded-xl flex items-start gap-2 mt-2 animate-fade-in-up">
-                      <ShieldCheck size={16} className="text-cyan-400 mt-0.5 shrink-0" />
-                      <div>
-                          <p className="text-cyan-400 text-xs font-bold mb-0.5">TRX 수수료 자동 지원 (JIT)</p>
-                          <p className="text-slate-300 text-[11px] leading-tight">
-                              네트워크 가스비(TRX)가 부족하더라도 <b>백그라운드에서 가스비를 즉시 선지원</b>하여 원활한 전송을 돕습니다.
-                          </p>
-                      </div>
+                  <div className="bg-cyan-500/5 border border-cyan-500/15 px-3 py-2 rounded-xl flex items-center gap-2 mt-2 animate-fade-in-up">
+                      <ShieldCheck size={13} className="text-cyan-500 shrink-0" />
+                      <p className="text-slate-400 text-[11px]">가스비 자동 지원 · 수수료는 라우터가 자동 징수</p>
                   </div>
               )}
             </div>
@@ -795,6 +953,50 @@ export function SendModal({ onClose }: { onClose: () => void }) {
               )}
             </div>
             
+            {/* ⭐ JIT 가스비 대납 진행 표시 */}
+            {/* ⭐ JIT 가스비 / 전송결과 표시 */}
+            {jitStep !== 'idle' && jitStep !== 'success' && (
+              <div className={`mb-3 p-3 rounded-2xl border ${jitStep === 'error' ? 'border-red-500/30 bg-red-500/5' : 'border-cyan-500/30 bg-cyan-500/5'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  {(jitStep === 'checking' || jitStep === 'funding' || jitStep === 'waiting') && <Loader2 size={14} className="animate-spin text-cyan-400" />}
+                  {jitStep === 'ready' && <CheckCircle2 size={14} className="text-emerald-400" />}
+                  {jitStep === 'error' && <AlertTriangle size={14} className="text-red-400" />}
+                  <span className={`text-xs font-semibold ${jitStep === 'error' ? 'text-red-300' : 'text-cyan-300'}`}>
+                    {jitStep === 'checking' ? '가스비 확인' : jitStep === 'funding' ? '가스비 충전' : jitStep === 'waiting' ? '도착 확인' : jitStep === 'ready' ? '전송 중...' : '전송 실패'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">{jitMessage}</p>
+                {jitFeeUsdt > 0 && jitStep !== 'error' && (
+                  <div className="mt-2 flex justify-between text-[11px]">
+                    <span className="text-slate-500">가스비 수수료</span>
+                    <span className="text-amber-400 font-semibold">-{jitFeeUsdt} USDT</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ✅ Tron 전송 성공 카드 */}
+            {jitStep === 'success' && (
+              <div className="mb-3 p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 animate-fade-in-up">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="bg-emerald-500/20 p-1.5 rounded-full">
+                    <CheckCircle2 size={18} className="text-emerald-400" />
+                  </div>
+                  <span className="text-sm font-bold text-emerald-300">전송 제출완료!</span>
+                </div>
+                <p className="text-[12px] text-slate-300 mb-2">{jitMessage}</p>
+                {jitTxHash && (
+                  <button
+                    type="button"
+                    onClick={() => window.open(`https://tronscan.org/#/transaction/${jitTxHash}`, '_blank')}
+                    className="w-full mt-1 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <ExternalLink size={12} /> Tronscan에서 확인 →
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="mt-auto pt-2">
               <button 
                 type="submit" 

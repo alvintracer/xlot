@@ -353,31 +353,57 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
             // E. Tron
             if (wallet.addresses.trx) {
                 try {
-                    const tron = getTronWeb();
-                    tron.setAddress(wallet.addresses.trx);
+                    const headers: HeadersInit = { "Content-Type": "application/json" };
 
-                    const sun = await tron.trx.getBalance(wallet.addresses.trx);
-                    const trxVal = sun / 1000000;
-                    wallet.balances.trx = trxVal;
-                    if (trxVal > 0) {
-                        wallet.assets.push({
-                            symbol: "TRX",
-                            name: "Tron",
-                            balance: trxVal,
-                            price: prices?.tokens.trx.usd || 0,
-                            value: trxVal * (prices?.tokens.trx.usd || 0),
-                            change: prices?.tokens.trx.change || 0,
-                            network: "Tron",
-                            isNative: true
-                        });
+                    // VITE_TRONSCAN_API_KEYS 또는 VITE_TRON_PRO_API_KEY 중 사용 가능한 것으로 랜덤 로테이션
+                    const tronKeyStr = (import.meta.env.VITE_TRONSCAN_API_KEYS || import.meta.env.VITE_TRON_PRO_API_KEY || '').trim();
+                    if (tronKeyStr) {
+                        const keys = tronKeyStr.split(',').map((k: string) => k.trim()).filter(Boolean);
+                        if (keys.length > 0) headers["TRON-PRO-API-KEY"] = keys[Math.floor(Math.random() * keys.length)];
+                    }
+                    
+                    const tronRes = await fetch(`https://api.trongrid.io/v1/accounts/${wallet.addresses.trx}`, { headers });
+                    const tronData = await tronRes.json();
+                    
+                    if (tronData && tronData.data && tronData.data.length > 0) {
+                        const acc = tronData.data[0];
+                        const trxVal = (acc.balance || 0) / 1000000;
+                        wallet.balances.trx = trxVal;
+                        
+                        if (trxVal > 0) {
+                            wallet.assets.push({
+                                symbol: "TRX",
+                                name: "Tron",
+                                balance: trxVal,
+                                price: prices?.tokens.trx.usd || 0,
+                                value: trxVal * (prices?.tokens.trx.usd || 0),
+                                change: prices?.tokens.trx.change || 0,
+                                network: "Tron",
+                                isNative: true
+                            });
+                        }
+                    } else {
+                        wallet.balances.trx = 0;
                     }
 
-                    // TRC20 USDT
+                    // TRC20 USDT 명시적 단일 조회 (ABI 직접 주입하여 429 에러 방지)
+                    // (지갑이 TRX를 받은 적 없는 미활성 상태여도 컨트랙트에는 USDT 잔고가 있을 수 있음)
                     try {
                         const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-                        const contract = await tron.contract().at(USDT_CONTRACT);
+                        const MINIMAL_USDT_ABI = [{
+                            "constant": true,
+                            "inputs": [{"name": "who", "type": "address"}],
+                            "name": "balanceOf",
+                            "outputs": [{"name": "", "type": "uint256"}],
+                            "type": "function"
+                        }];
+                        
+                        const tron = getTronWeb();
+                        tron.setAddress(wallet.addresses.trx);
+                        // ABI를 수동으로 제공하면 노드에 ABI 다운로드 요청(rate limit 원인)을 날리지 않음
+                        const contract = await tron.contract(MINIMAL_USDT_ABI, USDT_CONTRACT);
                         const rawBalance = await contract.balanceOf(wallet.addresses.trx).call();
-                        const usdtVal = Number(rawBalance.toString()) / 1000000; // USDT has 6 decimals
+                        const usdtVal = Number(rawBalance.toString()) / 1000000;
 
                         if (usdtVal > 0) {
                             let usdtPrice = 1;
@@ -400,12 +426,12 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                                 tokenAddress: USDT_CONTRACT
                             });
                         }
-                    } catch (e) {
-                        console.warn('TRC20 USDT fetch error:', e);
+                    } catch (usdtErr) {
+                         console.warn('Explicit USDT fetch failed:', usdtErr);
                     }
                 } catch (e) { 
                     wallet.balances.trx = 0; 
-                    console.warn('Tron fetch error:', e);
+                    console.warn('Tron / TRC20 fetch error:', e);
                 }
             }
 
@@ -475,7 +501,7 @@ export async function ensureMainWallet(userId: string, evmAddress: string) {
         await supabase.from('user_wallets').insert({
             user_id: userId,
             wallet_type: 'XLOT',
-            label: "xLOT 스마트 이더리움 월렛",
+            label: "스마트 took 지갑",
             address: evmAddress,
             device_uuid: getDeviceId()
         });

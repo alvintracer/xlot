@@ -36,3 +36,5 @@ contracts/broadcast/
 # Supabase Edge Functions
 supabase/functions/.env
 supabase/functions/**/.env
+
+details.txt

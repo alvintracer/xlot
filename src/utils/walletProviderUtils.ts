@@ -143,6 +143,7 @@ export const EVM_WALLET_TYPES = [
 
 export type EVMWalletType = typeof EVM_WALLET_TYPES[number];
 
+
 export const isEVMWallet = (walletType: string): boolean =>
   EVM_WALLET_TYPES.includes(walletType as EVMWalletType);
 

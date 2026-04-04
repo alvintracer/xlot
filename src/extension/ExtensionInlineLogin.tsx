@@ -78,10 +78,10 @@ export function ExtensionInlineLogin({ onSeedPhrase }: Props) {
       {/* 헤더 */}
       <div className="text-center space-y-2">
         <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 mx-auto flex items-center justify-center overflow-hidden">
-          <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-contain rounded-xl" />
+          <img src="/icon-192.png" alt="took" className="w-full h-full object-contain rounded-xl" />
         </div>
         <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
-          xLOT Wallet
+          took Wallet
         </h1>
       </div>
 

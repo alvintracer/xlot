@@ -27,7 +27,7 @@ export function SeedBackupModal({ mnemonic, onClose }: Props) {
           <h2 className="text-2xl font-black text-white">비밀 복구 구문 저장</h2>
           <p className="text-slate-400 text-sm mt-2 leading-relaxed">
             이 12단어는 회원님의 <b>솔라나 지갑 열쇠</b>입니다.<br/>
-            xLOT 팀도 회원님의 키를 저장하지 않으므로,<br/>
+            took 팀도 회원님의 키를 저장하지 않으므로,<br/>
             <span className="text-red-400 font-bold">잃어버리면 자산을 영구적으로 분실합니다.</span>
           </p>
         </div>

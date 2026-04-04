@@ -229,7 +229,7 @@
   // ── EIP-6963: Wallet Selector 지원 ───────────────────────────────
   const eip6963Info = {
     uuid: 'xlot-wallet-extension-v1',
-    name: 'xLOT Wallet',
+    name: 'took Wallet',
     icon: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
     rdns: 'com.xlot.wallet',
   };

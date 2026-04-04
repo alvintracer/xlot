@@ -379,7 +379,7 @@ export async function saveImportedKeysToVaultSSS(
     key_share_c_salt:        shareCEnc.salt,
   }, { onConflict: 'user_id,wallet_address' });
 
-  if (error) throw new Error(`Import Key SSS 저장 실패: ${error.message}`);
+  if (error) throw new Error(`Import Key SAR 저장 실패: ${error.message}`);
 }
 
 export async function restoreImportedKeysFromVaultSSS(

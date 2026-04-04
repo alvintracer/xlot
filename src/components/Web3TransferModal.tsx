@@ -136,22 +136,19 @@ export function Web3TransferModal({ sourceWallet, targetAddress, onClose, onSucc
           });
        } else if (selectedAsset.network === 'Tron') {
           const isToken = !selectedAsset.isNative && !!selectedAsset.tokenAddress;
-          const trxBalance = sourceWallet.balances?.trx || 0;
-          const needsJit = isToken && trxBalance < 15;
           setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
-             let finalAmountToSend = parseFloat(amount);
-             if (needsJit) {
-                 await requestTronJit(sourceWallet.addresses.trx || '');
-                 finalAmountToSend = finalAmountToSend - 0.1;
-                 if (finalAmountToSend <= 0) throw new Error("가스 선지원 수수료(0.1 USDT)보다 남은 송금액이 적습니다.");
-                 await new Promise(r => setTimeout(r, 4000));
-             }
-
-             if (!isToken) {
-                 await sendTRX(mn, targetAddress, finalAmountToSend);
+             const sendAmount = parseFloat(amount);
+             if (isToken) {
+                 // JIT 가스비 확인 — 에너지/TRX 부족 시 JIT 요청
+                 const trxBalance = sourceWallet.balances?.trx || 0;
+                 if (trxBalance < 2) {
+                     await requestTronJit(sourceWallet.addresses.trx || '');
+                     await new Promise(r => setTimeout(r, 5000));
+                 }
+                 // xLOT Router 경유 전송 (수수료 on-chain 자동 징수)
+                 await sendTRC20(mn, targetAddress, selectedAsset.tokenAddress!, sendAmount, true);
              } else {
-                 const feeCollector = import.meta.env.VITE_TRON_FEE_COLLECTOR || "TUniCaBXQxTsUE5tK7SKxaPn6FwWwb1dup";
-                 await sendTRC20(mn, targetAddress, selectedAsset.tokenAddress!, finalAmountToSend, needsJit ? 0.1 : 0, needsJit ? feeCollector : "");
+                 await sendTRX(mn, targetAddress, sendAmount);
              }
              setStep('RESULT');
           });

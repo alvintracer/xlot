@@ -76,7 +76,7 @@ export function ReceiveModal({ onClose }: { onClose: () => void }) {
         {/* 지갑 선택 */}
         <button onClick={() => setIsSelectorOpen(true)} className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full mb-6 border border-slate-700 hover:bg-slate-700 transition-all">
           <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs text-white overflow-hidden ${(selectedWallet?.wallet_type === 'XLOT' || selectedWallet?.wallet_type === 'XLOT_SSS') ? 'bg-slate-900 border border-slate-700' : 'bg-slate-600'}`}>
-            {(selectedWallet?.wallet_type === 'XLOT' || selectedWallet?.wallet_type === 'XLOT_SSS') ? <img src="/icon-192.png" className="w-full h-full object-cover" alt="xLOT" /> : 'W'}
+            {(selectedWallet?.wallet_type === 'XLOT' || selectedWallet?.wallet_type === 'XLOT_SSS') ? <img src="/icon-192.png" className="w-full h-full object-cover" alt="took" /> : 'W'}
           </div>
           <span className="text-sm font-bold text-white">{selectedWallet?.label}</span>
           <ChevronDown size={14} className="text-slate-400" />

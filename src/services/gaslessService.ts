@@ -115,8 +115,45 @@ export async function requestTronJit(userAddress: string, requiredTrxAmount: num
   const { data, error } = await supabase.functions.invoke('tron-jit-gas', {
     body: { userAddress, trxAmount: requiredTrxAmount }
   });
-  if (error) throw new Error("TRX 가스 선지원(JIT) 요청 실패");
-  return data;
+  // HTTP 레벨 에러 (4xx/5xx)
+  if (error) throw new Error("TRX JIT 요청 실패: " + (error.message || error));
+
+  // 서버에서 success: false 반환 시 (잔액 부족 등) — 400이 아닌 200으로 옴
+  if (data && data.success === false) {
+    throw new Error(data.reason || "에너지/TRX 지원 불가 (잔액 부족)");
+  }
+
+  return data; // { success: true, method, ... }
+}
+
+// ===============================================
+// Tron: 수수료 미수금 기록 (off-chain ledger)
+// 유저 지갑에 남아있는 USDT를 나중에 일괄 수거
+// ===============================================
+
+export async function recordPendingFee(params: {
+  userAddress: string;
+  tokenSymbol: string;   // 'USDT'
+  feeAmount: number;     // 0.5 (USDT 단위)
+  txHash: string;        // 본 전송 tx hash
+  jitMethod: string;     // 'energy_rental' | 'bandwidth' | 'fallback_trx'
+  trxCost: number;       // 실제 TRX 비용 (우리가 지출한)
+}) {
+  try {
+    const { error } = await supabase.from('pending_fees').insert({
+      user_address: params.userAddress,
+      token_symbol: params.tokenSymbol,
+      fee_amount: params.feeAmount,
+      tx_hash: params.txHash,
+      jit_method: params.jitMethod,
+      trx_cost: params.trxCost,
+      status: 'pending',     // pending → collected
+      created_at: new Date().toISOString(),
+    });
+    if (error) console.error('[Fee] DB insert failed:', error);
+  } catch (e) {
+    console.error('[Fee] recordPendingFee failed:', e);
+  }
 }
 
 // ===============================================

@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft, Copy, Send, Download, History,
   ArrowUpRight, ArrowDownLeft, Loader2, RefreshCw, Globe,
-  Building2, Coins, ShieldCheck, Check, Key, MoreVertical
+  Building2, Coins, ShieldCheck, Shield, Check, Key, MoreVertical, Link2
 } from "lucide-react";
 import { useActiveAccount } from "thirdweb/react";
 import type { WalletSlot } from "../services/walletService";
@@ -144,7 +144,7 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
           </button>
           <h2 className="font-bold text-lg text-white flex items-center gap-2">
             {isCex && <Building2  size={18} className="text-indigo-400" />}
-            {(isXlot || isSSSWallet) && <img src="/icon-192.png" alt="xLOT" className="w-5 h-5 rounded-full object-cover" />}
+            {(isXlot || isSSSWallet) && <img src="/icon-192.png" alt="took" className="w-5 h-5 rounded-full object-cover" />}
             {wallet.label}
           </h2>
           <div className="flex items-center gap-1 relative">
@@ -182,7 +182,7 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
                       onClick={() => { setShowExchangeConnect(true); setIsMenuOpen(false); }} 
                       className="w-full px-4 py-3 text-left text-xs font-bold text-cyan-400 hover:bg-cyan-500/10 flex items-center gap-2 border-b border-slate-700"
                     >
-                      거래소 연동
+                      <Link2 size={14} className="text-cyan-400"/> 거래소 연동
                     </button>
                     <button 
                       onClick={() => { setIsSssExportModalOpen(true); setIsMenuOpen(false); }} 
@@ -200,7 +200,7 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
               ${(isSSSWallet || isXlot) ? 'bg-cyan-500/20 border-2 border-cyan-500/30 text-cyan-400 p-1 overflow-hidden'
               : isCex ? 'bg-indigo-500/20 text-indigo-400'
               : 'bg-slate-800 text-white'}`}>
-            {(isSSSWallet || isXlot) ? <img src="/icon-192.png" alt="xLOT" className="w-full h-full object-cover rounded-full" /> : wallet.label[0]}
+            {(isSSSWallet || isXlot) ? <img src="/icon-192.png" alt="took" className="w-full h-full object-cover rounded-full" /> : wallet.label[0]}
           </div>
 
           <p className="text-slate-500 text-sm font-bold mb-1 relative z-10">총 보유 자산</p>
@@ -211,42 +211,8 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
             </button>
           </div>
 
-          {/* SSS 지갑 배지 */}
-          {isSSSWallet && (
-            <div className="mt-3 flex items-center justify-center gap-2">
-              <span className="text-[10px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded-full font-bold">
-                Triple-Shield
-              </span>
-              <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full">
-                비수탁
-              </span>
-            </div>
-          )}
-
-          {/* XLOT_SSS KYC 배지 */}
-          {isSSSWallet && userId && (
-            <div className="mt-4 px-6 relative z-10">
-              {hasKYC ? (
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                    <ShieldCheck size={9}/> KYC 등록됨
-                  </span>
-                  <button onClick={() => setShowKYCReg(true)}
-                    className="text-[10px] text-slate-500 hover:text-slate-300">
-                    재등록
-                  </button>
-                </div>
-              ) : (
-                <button onClick={() => setShowKYCReg(true)}
-                  className="w-full py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2">
-                  <ShieldCheck size={13}/> KYC 정보 등록 (Travel Rule 자동 입력용)
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* 일반 지갑 단일 주소 */}
-          {!isCex && !isSSSWallet && mainAddress && (
+          {/* 모든 비수탁(Web3, XLOT, SSS) 지갑 단일 주소 */}
+          {!isCex && mainAddress && (
             <button onClick={() => handleCopy(mainAddress, 'main')}
               className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 bg-slate-950/50 rounded-full border border-slate-700 text-xs text-slate-400 hover:text-white hover:border-cyan-500/50 transition-all relative z-10">
               {mainAddress.slice(0, 6)}...{mainAddress.slice(-4)}
@@ -254,16 +220,33 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
             </button>
           )}
 
-          {isCex && (
-            <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-[10px] font-bold text-green-400 relative z-10">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> API Connected
+          {/* 지갑 배지 & KYC 상태 (xlot_sss 스타일로 통일) */}
+          {!isCex && (
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <span className="text-[10px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded-full font-bold">
+                {isSSSWallet ? 'Triple-Shield' : isXlot ? 'MPC' : 'Web3 Wallet'}
+              </span>
+              <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full">
+                비수탁
+              </span>
+              {userId && (
+                <button 
+                  onClick={() => setShowKYCReg(true)}
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-all border flex items-center gap-1.5 shadow-sm
+                    ${hasKYC 
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-emerald-500/10' 
+                      : 'bg-slate-800/50 text-slate-500 border-slate-700'}`}
+                >
+                  <ShieldCheck size={10} className={hasKYC ? "text-emerald-400" : "text-slate-600"} />
+                  {hasKYC ? 'KYC 등록됨' : 'KYC 정보 등록'}
+                </button>
+              )}
             </div>
           )}
 
-          {/* KYC 배지 (XLOT 전용) */}
-          {isXlot && userId && (
-            <div className="mt-5 px-6 relative z-10">
-              <CompactBadgeRow key={kycRefresh} userId={userId} onRequest={onKycRequest} />
+          {isCex && (
+            <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-[10px] font-bold text-green-400 relative z-10">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> API Connected
             </div>
           )}
         </div>
@@ -302,27 +285,6 @@ export function WalletDetailView({ wallet, onBack, onDeposit, onSend, currencyMo
           </div>
         )}
 
-        {/* KYC 섹션 (XLOT 전용) */}
-        {(isXlot) && userId && (
-          <div className="mb-6 bg-slate-900 border border-slate-800 rounded-3xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck size={14} className="text-cyan-400" />
-                <span className="text-sm font-bold text-white">KYC 인증</span>
-                <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">
-                  Privacy-Preserving
-                </span>
-              </div>
-              <button onClick={() => hasKYC ? onKycRequest?.() : setShowKYCReg(true)}
-                className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300">
-                {hasKYC ? '인증 관리 →' : '인증 하기'}
-              </button>
-            </div>
-            <p className="text-[10px] text-slate-500 leading-relaxed">
-              개인정보 저장 없이 성인·실명·비제재 인증을 완료하세요.
-            </p>
-          </div>
-        )}
 
         {/* 보유 자산 리스트 (모든 지갑 공통, Toss UI 스타일) */}
         {wallet.assets && wallet.assets.length > 0 && (

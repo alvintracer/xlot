@@ -40,7 +40,7 @@ export function DepositDrawer({ myWallets, currentWalletId, onClose, onSelectSou
                        : (wallet.wallet_type === 'XLOT' || wallet.wallet_type === 'XLOT_SSS') ? 'bg-slate-900 border border-slate-700' 
                        : 'bg-slate-800 text-slate-400'}`}>
                        {wallet.wallet_type === 'UPBIT' ? 'Up' 
-                       : (wallet.wallet_type === 'XLOT' || wallet.wallet_type === 'XLOT_SSS') ? <img src="/icon-192.png" className="w-full h-full object-cover" alt="xLOT" />
+                       : (wallet.wallet_type === 'XLOT' || wallet.wallet_type === 'XLOT_SSS') ? <img src="/icon-192.png" className="w-full h-full object-cover" alt="took" />
                        : wallet.label[0]}
                     </div>
                     <div className="text-left">

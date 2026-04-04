@@ -41,9 +41,18 @@ export async function fetchCryptoPrices(): Promise<PriceData> {
     try {
         // ✨ matic-network -> polygon-ecosystem-token (POL)으로 변경 권장되나
         // 아직 API 호환성을 위해 둘 다 체크하거나 matic을 pol로 매핑
+        const cgHeaders: Record<string, string> = { 'Accept': 'application/json' };
+        const cgKeyStr = import.meta.env.VITE_COINGECKO_API_KEY || '';
+        if (cgKeyStr) {
+            const cgKeys = cgKeyStr.split(',').map((k: string) => k.trim()).filter(Boolean);
+            if (cgKeys.length > 0) {
+                cgHeaders['x-cg-demo-api-key'] = cgKeys[Math.floor(Math.random() * cgKeys.length)];
+            }
+        }
+
         const response = await fetch(
             "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,matic-network,tether,usd-coin,bitcoin,solana,tron&vs_currencies=krw,usd&include_24hr_change=true",
-            { method: 'GET', headers: { 'Accept': 'application/json' } }
+            { method: 'GET', headers: cgHeaders }
         );
 
         if (!response.ok) return priceCache || DEFAULT_PRICES;
