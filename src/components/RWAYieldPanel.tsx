@@ -4,7 +4,7 @@
 // ============================================================
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, Shield, ChevronRight, RefreshCw } from 'lucide-react';
+import { TrendingUp, Shield, ChevronRight, RefreshCw, ShieldCheck } from 'lucide-react';
 import {
   ALL_RWA_ASSETS,
   RWA_COMMODITY,
