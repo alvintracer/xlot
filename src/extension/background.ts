@@ -44,6 +44,7 @@ const CHAIN_RPC: Record<string, string> = {
   '0x89':   'https://rpc.ankr.com/polygon',         // Polygon
   '0xaa36a7': 'https://rpc.ankr.com/eth_sepolia',   // Sepolia
   '0x13882': 'https://rpc.ankr.com/polygon_amoy',   // Polygon Amoy
+  '0x2105': 'https://rpc.ankr.com/base',            // Base
 };
 
 // JSON-RPC 프록시: 로컬에서 처리 불가능한 요청을 원격 RPC 노드로 전달

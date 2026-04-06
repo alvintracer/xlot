@@ -1,38 +1,52 @@
 // ============================================================
-// TradePage.tsx
-// Mobile: 기존 모달 방식
-// PC:     거래소 스팟 레이아웃
-//         ┌─────────────────┬──────────────────┐
-//         │  좌측 패널       │  우측 패널         │
-//         │  - 시장 분석     │  - 자산 목록       │
-//         │  - 가격 비교     │  (RWAYieldPanel)  │
-//         │  - 스프레드 게이지│                   │
-//         │  - 유동성 도넛   │                   │
-//         │  - 매수 폼       │                   │
-//         └─────────────────┴──────────────────┘
+// TradePage.tsx — RWA Market Intelligence + Best Execution
+//
+// Mobile: RWAYieldPanel -> RWASwapModal (preserved)
+// PC:     3-layer architecture:
+//         ┌──────────────────────────────────────────────────┐
+//         │  Layer 0: Aggregator Summary Strip               │
+//         ├──────────────────────┬───────────────────────────┤
+//         │  Layer 2+3:          │  Layer 1:                 │
+//         │  Instrument Detail   │  Market Scanner Board     │
+//         │  + Execution Drawer  │  (Asset-class tabs,       │
+//         │  (Charts, Structure, │   structure filters,      │
+//         │   Buy Form, KYC/FX)  │   sortable columns)       │
+//         └──────────────────────┴───────────────────────────┘
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import { RWAYieldPanel } from '../components/RWAYieldPanel';
+// RWAYieldPanel no longer used in mobile (synced with instrument model)
 import { RWASwapModal } from '../components/RWASwapModal';
 import { RWAMarketVisualPanel } from '../components/RWAMarketVisual';
+import { RWAMarketScanner } from '../components/RWAMarketScanner';
+import { BadgeStrip, ConfidenceMeter, DisclosurePanel } from '../components/RWADisclosureBadges';
+
+// Legacy types (backward compat for existing components)
 import type { RWAAsset } from '../constants/rwaAssets';
 import { ALL_RWA_ASSETS, RWA_CATEGORY_COLORS } from '../constants/rwaAssets';
+
+// New instrument model
+import { ALL_INSTRUMENTS, getExecutableInstruments, instrumentToLegacyAsset } from '../constants/rwaInstruments';
+import type { RWAInstrument, AssetClass } from '../types/rwaInstrument';
+import { ASSET_CLASS_META, STRUCTURE_LABELS, EXECUTION_LABELS } from '../types/rwaInstrument';
+import { computeConfidence } from '../services/confidenceScoringService';
+import { generateDisclosure } from '../services/disclosureService';
+
 import { fetchRWAPrices, fetchNAVData, RWA_LIQUIDITY_FALLBACK, formatApy, getChainName } from '../services/rwaService';
 import type { RWAPriceMap, NAVMap } from '../services/rwaService';
-import { getSwapRoute } from '../services/swapService';
+import { getBestRWAExecution } from '../services/providers/rwaExecutionProvider';
+import type { RouteOption } from '../services/providers/rwaExecutionProvider';
 import type { DEXRouteResult } from '../services/swapService';
 import { useActiveAccount } from 'thirdweb/react';
 import { hasValidKYC } from '../services/credentialService';
 import { hasKYCOnDevice } from '../services/kycDeviceService';
 import {
-  X, ShieldCheck, AlertCircle, ArrowRightLeft,
-  Loader2, Check, Info, ChevronRight, BarChart2
+  ShieldCheck, AlertCircle, ArrowRightLeft,
+  Loader2, Info, Globe, Route as RouteIcon, Database, Clock,
+  ChevronDown, Star, Zap, Eye, TrendingUp
 } from 'lucide-react';
 import { KYCRegistrationModal } from '../components/KYCRegistrationModal';
 
-// ============================================================
-// Hook: 화면 너비 감지
 // ============================================================
 function useIsPC() {
   const [isPC, setIsPC] = useState(() => window.innerWidth >= 1024);
@@ -52,7 +66,6 @@ interface TradePageProps {
 const FX_THRESHOLD_USD = 10_000;
 const FX_PURPOSE_OPTIONS = ['해외 투자', '자산 운용', '유학/교육비', '해외 부동산', '기타 재산 형성'];
 
-// ============================================================
 export function TradePage({ onKycRequest }: TradePageProps) {
   const isPC = useIsPC();
   const smartAccount = useActiveAccount();
@@ -60,199 +73,464 @@ export function TradePage({ onKycRequest }: TradePageProps) {
   const [prices, setPrices]   = useState<RWAPriceMap>({});
   const [navMap, setNavMap]   = useState<NAVMap>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  // PC: 선택된 자산 (좌측 패널)
+  // Selected instrument (new model)
+  const [selectedInstrument, setSelectedInstrument] = useState<RWAInstrument>(ALL_INSTRUMENTS[0]);
+
+  // Legacy asset bridge for existing components (charts, swap modal)
   const [activeAsset, setActiveAsset] = useState<RWAAsset>(ALL_RWA_ASSETS[0]);
-  // PC: 좌측 패널 route 결과
-  const [panelRoute, setPanelRoute]   = useState<DEXRouteResult | null>(null);
+
+  // Execution state
+  const [bestRoutes, setBestRoutes] = useState<RouteOption[]>([]);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
   const [isRouteFetching, setIsRouteFetching] = useState(false);
 
-  // Mobile: 스왑 모달
-  const [mobileSelectedAsset, setMobileSelectedAsset] = useState<RWAAsset | null>(null);
-
-  // PC: 매수 폼 state
+  // Buy Form State
   const [amountUsdc, setAmountUsdc] = useState('');
   const [fxPurpose, setFxPurpose]   = useState('');
   const [hasKyc, setHasKyc]         = useState(false);
   const [isCheckingKyc, setIsCheckingKyc] = useState(true);
-  const [buyStep, setBuyStep]       = useState<'idle' | 'fx' | 'confirm' | 'buying' | 'done'>('idle');
+  const [buyStep, setBuyStep]       = useState<'idle' | 'fx' | 'confirm' | 'buying' | 'done' | 'compare'>('idle');
   const [showKYCReg, setShowKYCReg] = useState(false);
 
+  // Mobile
+  // Mobile state moved to mobile render section
+
+  // ── Data fetch ──
   useEffect(() => {
     fetchRWAPrices().then(data => {
       setPrices(data);
       setIsLoading(false);
+      setLastUpdated(new Date());
       fetchNAVData(data).then(setNavMap).catch(console.error);
     }).catch(console.error);
   }, []);
 
-  // KYC 체크 — DB 배지(NON_SANCTIONED) OR 로컬 실명 저장 여부
+  // ── KYC check ──
   useEffect(() => {
     if (!smartAccount) return;
     setIsCheckingKyc(true);
-    // 로컬에 KYC 저장된 경우 즉시 통과 (PIN 입력 없이 여부만 확인)
     if (hasKYCOnDevice(smartAccount.address)) {
       setHasKyc(true);
       setIsCheckingKyc(false);
       return;
     }
-    // 로컬 없으면 DB 배지 확인
     hasValidKYC(smartAccount.address)
       .then(setHasKyc)
       .catch(() => setHasKyc(false))
       .finally(() => setIsCheckingKyc(false));
   }, [smartAccount]);
 
-  // PC: 자산 선택 시 route fetch
-  const fetchRouteForAsset = useCallback(async (asset: RWAAsset, amount: string) => {
-    const num = parseFloat(amount) || 0;
-    if (num < asset.minInvestmentUsd) { setPanelRoute(null); return; }
-    setIsRouteFetching(true);
-    try {
-      const result = await getSwapRoute(
-        asset.chainId, asset.buyWithAddress, asset.contractAddress,
-        amount, 6, asset.decimals, 'USDC', asset.symbol,
-      );
-      setPanelRoute(result);
-    } catch (e) {
-      console.warn('[TradePage] route fetch 실패', e);
-    } finally {
-      setIsRouteFetching(false);
+  // ── Instrument selection handler ──
+  const handleInstrumentSelect = (inst: RWAInstrument) => {
+    setSelectedInstrument(inst);
+    // Bridge to legacy asset for existing chart components
+    const legacy = instrumentToLegacyAsset(inst);
+    if (legacy) {
+      setActiveAsset(legacy as RWAAsset);
     }
-  }, []);
-
-  const handleAssetSelect = (asset: RWAAsset) => {
-    setActiveAsset(asset);
     setAmountUsdc('');
-    setPanelRoute(null);
+    setBestRoutes([]);
     setBuyStep('idle');
     setFxPurpose('');
   };
 
-  // 금액 변경 시 route debounce
+  // ── Route fetching ──
+  const fetchRoutes = useCallback(async (inst: RWAInstrument, amount: string) => {
+    if (inst.executionAvailability !== 'swappable_now') {
+      setBestRoutes([]);
+      return;
+    }
+    const chain = inst.chains[0];
+    if (!chain) return;
+    const num = parseFloat(amount) || 0;
+    if (num < inst.minInvestmentUsd) {
+      setBestRoutes([]);
+      return;
+    }
+    setIsRouteFetching(true);
+    try {
+      const nav = navMap[inst.id]?.navUsd || null;
+      const legacyAsset = instrumentToLegacyAsset(inst);
+      if (!legacyAsset) return;
+      const results = await getBestRWAExecution(
+        legacyAsset as RWAAsset,
+        amount, chain.decimals === 6 ? 6 : 6, chain.decimals,
+        smartAccount?.address || '0x0000000000000000000000000000000000000000',
+        nav, 0.5
+      );
+      setBestRoutes(results);
+      setSelectedRouteIndex(0);
+      if (results.length > 0) setBuyStep('compare');
+    } catch (e) {
+      console.warn('[TradePage] route fetch fail', e);
+      setBestRoutes([]);
+    } finally {
+      setIsRouteFetching(false);
+    }
+  }, [navMap, smartAccount]);
+
+  // Debounced route fetch
   useEffect(() => {
     if (!isPC) return;
     const timer = setTimeout(() => {
-      if (amountUsdc) fetchRouteForAsset(activeAsset, amountUsdc);
-      else setPanelRoute(null);
+      if (amountUsdc) fetchRoutes(selectedInstrument, amountUsdc);
+      else setBestRoutes([]);
     }, 700);
     return () => clearTimeout(timer);
-  }, [amountUsdc, activeAsset, isPC, fetchRouteForAsset]);
+  }, [amountUsdc, selectedInstrument, isPC, fetchRoutes]);
 
-  // ── 모바일 렌더 ──
+  // ── Mobile state ──
+  const [mobileClassFilter, setMobileClassFilter] = useState<'all' | AssetClass>('all');
+  const [mobileSelectedInst, setMobileSelectedInst] = useState<RWAInstrument | null>(null);
+
+  const mobileFilteredInsts = ALL_INSTRUMENTS.filter(i =>
+    mobileClassFilter === 'all' ? true : i.assetClass === mobileClassFilter
+  );
+
+  // ── Mobile render (synced with PC instrument model) ──
   if (!isPC) {
     return (
-      <div className="p-4 pb-24 animate-fade-in">
-        <RWAYieldPanel onSelectAsset={setMobileSelectedAsset} />
-        {mobileSelectedAsset && (
-          <RWASwapModal
-            asset={mobileSelectedAsset}
-            prices={prices}
-            navData={navMap[mobileSelectedAsset.id] ?? null}
-            onClose={() => setMobileSelectedAsset(null)}
-            onKycRequest={() => setShowKYCReg(true)}
-          />
-        )}
-        {showKYCReg && (
-          <KYCRegistrationModal
-            onClose={() => setShowKYCReg(false)}
-            onSuccess={() => window.location.reload()}
-          />
-        )}
+      <div className="pb-28 animate-fade-in bg-[#020617] min-h-screen">
+        {/* Mobile Header */}
+        <div className="px-4 pt-4 pb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Globe size={16} className="text-blue-500" />
+            <span className="text-xs font-black text-white">RWA Market Intelligence</span>
+          </div>
+          <p className="text-[10px] text-slate-500">{ALL_INSTRUMENTS.length} instruments · {new Set(ALL_INSTRUMENTS.map(i => i.assetClass)).size} asset classes</p>
+        </div>
+
+        {/* Asset Class Tabs (horizontal scroll) */}
+        <div className="px-4 pb-3 overflow-x-auto">
+          <div className="flex gap-1.5 min-w-max">
+            {[
+              { id: 'all' as const, label: 'All', icon: '🌐' },
+              ...Object.values(ASSET_CLASS_META).map(m => ({ id: m.id, label: m.label, icon: m.icon })),
+            ].map(tab => (
+              <button key={tab.id} onClick={() => setMobileClassFilter(tab.id)}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
+                  mobileClassFilter === tab.id
+                    ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                    : 'bg-slate-900 text-slate-400 border border-slate-800'
+                }`}>
+                <span>{tab.icon}</span>{tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Instrument List */}
+        <div className="px-4 space-y-2">
+          {mobileFilteredInsts.map(inst => {
+            const acMeta = ASSET_CLASS_META[inst.assetClass];
+            const execMeta = EXECUTION_LABELS[inst.executionAvailability];
+            const structMeta = STRUCTURE_LABELS[inst.structureType];
+            const prc = prices[inst.id];
+            const nav = navMap[inst.id];
+
+            const priceDisplay = prc?.priceUsd
+              ? prc.priceUsd >= 1000 ? `$${prc.priceUsd.toLocaleString(undefined, {maximumFractionDigits: 0})}` : `$${prc.priceUsd.toFixed(4)}`
+              : `$${inst.fallbackNavUsd >= 100 ? inst.fallbackNavUsd.toFixed(0) : inst.fallbackNavUsd.toFixed(2)}`;
+
+            return (
+              <button key={inst.id}
+                onClick={() => setMobileSelectedInst(inst)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-left hover:border-slate-700 transition-all">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${acMeta.color.bg} border ${acMeta.color.border} flex items-center justify-center text-lg shrink-0`}>
+                    {acMeta.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <p className="text-sm font-black text-white truncate">{inst.symbol}</p>
+                      <p className="text-sm font-mono font-bold text-white">{priceDisplay}</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] text-slate-500 truncate">{inst.issuer}</p>
+                      {inst.fallbackApy > 0 && (
+                        <span className="text-[10px] font-black text-emerald-400">{inst.fallbackApy.toFixed(1)}% APY</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border border-transparent ${structMeta.color}`}>
+                        {structMeta.label}
+                      </span>
+                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${execMeta.color}`}>
+                        {execMeta.icon} {execMeta.label}
+                      </span>
+                      {nav && (
+                        <span className={`text-[9px] font-black ${nav.isDiscount ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {nav.spreadPct > 0 ? '+' : ''}{nav.spreadPct.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronDown size={14} className="text-slate-600 -rotate-90 shrink-0" />
+                </div>
+              </button>
+            );
+          })}
+
+          {mobileFilteredInsts.length === 0 && (
+            <div className="text-center py-8 text-sm text-slate-600">No instruments in this category</div>
+          )}
+        </div>
+
+        {/* Mobile Detail Modal */}
+        {mobileSelectedInst && (() => {
+          const inst = mobileSelectedInst;
+          const isExec = inst.executionAvailability === 'swappable_now';
+          const legacyAsset = instrumentToLegacyAsset(inst);
+          const acMeta = ASSET_CLASS_META[inst.assetClass];
+
+          // For executable assets with a valid legacy bridge, use the existing RWASwapModal
+          if (isExec && legacyAsset) {
+            return (
+              <RWASwapModal
+                asset={legacyAsset as RWAAsset}
+                prices={prices}
+                navData={navMap[inst.id] ?? null}
+                onClose={() => setMobileSelectedInst(null)}
+                onKycRequest={() => setShowKYCReg(true)}
+              />
+            );
+          }
+
+          // For non-executable assets, show an info-only bottom sheet
+          return (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => setMobileSelectedInst(null)}>
+              <div className="w-full max-w-md bg-slate-950 border-t border-slate-800 rounded-t-3xl p-6 pb-20 space-y-4 animate-slide-up max-h-[85vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+                
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl ${acMeta.color.bg} border ${acMeta.color.border} flex items-center justify-center text-xl`}>
+                      {acMeta.icon}
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white">{inst.displayName}</p>
+                      <p className="text-xs text-slate-500">{inst.issuer} · {inst.symbol}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setMobileSelectedInst(null)} className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800">
+                    <AlertCircle size={16} className="text-slate-400" />
+                  </button>
+                </div>
+
+                {/* Badges */}
+                <BadgeStrip instrument={inst} />
+
+                {/* Description */}
+                <p className="text-xs text-slate-400 leading-relaxed">{inst.description}</p>
+
+                {/* Underlying */}
+                <div className="bg-slate-900 rounded-xl p-3 border border-slate-800">
+                  <p className="text-[10px] text-slate-500 font-bold mb-1">Underlying Reference</p>
+                  <p className="text-xs text-white">{inst.underlyingReference}</p>
+                </div>
+
+                {/* Status indicator */}
+                <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 text-center space-y-2">
+                  <Eye size={20} className="mx-auto text-slate-600" />
+                  <p className="text-sm font-bold text-slate-400">
+                    {inst.executionAvailability === 'tracked_only' && 'Tracked Market'}
+                    {inst.executionAvailability === 'platform_only' && 'Platform Access Required'}
+                    {inst.executionAvailability === 'quote_only' && 'Quote Only'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    {inst.executionAvailability === 'tracked_only' && 'This instrument is tracked for market intelligence. Execution is not currently integrated.'}
+                    {inst.executionAvailability === 'platform_only' && `Execute via ${inst.issuer} platform directly.`}
+                    {inst.executionAvailability === 'quote_only' && 'Quotes available but no execution path integrated.'}
+                  </p>
+                </div>
+
+                {/* Disclosure */}
+                <DisclosurePanel instrument={inst} />
+
+                {/* Close button */}
+                <button onClick={() => setMobileSelectedInst(null)}
+                  className="w-full py-3.5 rounded-2xl font-bold text-sm text-slate-400 bg-slate-900 border border-slate-800">
+                  Close
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {showKYCReg && <KYCRegistrationModal onClose={() => setShowKYCReg(false)} onSuccess={() => window.location.reload()} />}
       </div>
     );
   }
 
-  // ── PC 렌더 ──
-  const navData    = navMap[activeAsset.id] ?? null;
-  const price      = prices[activeAsset.id];
-  const colors     = RWA_CATEGORY_COLORS[activeAsset.category];
+  // ── Computed values ──
+  const totalInstruments = ALL_INSTRUMENTS.length;
+  const executableCount = getExecutableInstruments().length;
+  const trackedCount = totalInstruments - executableCount;
+  const supportedChains = new Set(ALL_INSTRUMENTS.flatMap(i => i.chains.map(c => c.chainId))).size;
+  const assetClasses = new Set(ALL_INSTRUMENTS.map(i => i.assetClass)).size;
+  const bestDiscountAsset = Object.entries(navMap).filter(([,n]) => n.isDiscount).sort(([,a],[,b]) => a.spreadPct - b.spreadPct)[0];
+  const maxApy = Math.max(...ALL_INSTRUMENTS.map(i => i.fallbackApy));
+
+  const inst = selectedInstrument;
+  const acMeta = ASSET_CLASS_META[inst.assetClass];
+  const confidence = computeConfidence(inst);
+  const disclosure = generateDisclosure(inst);
+  const isExecutable = inst.executionAvailability === 'swappable_now';
+  const navData = navMap[inst.id] ?? null;
   const usdcAmount = parseFloat(amountUsdc) || 0;
-  const exchangeRate = price?.priceKrw && price?.priceUsd ? price.priceKrw / price.priceUsd : 1450;
-  const needsFxGate  = usdcAmount >= FX_THRESHOLD_USD;
-  const estimatedRwa = price?.priceUsd && usdcAmount
-    ? (usdcAmount / price.priceUsd).toFixed(6) : '0';
-  const canBuy = usdcAmount >= activeAsset.minInvestmentUsd && !isCheckingKyc;
+  const needsFxGate = usdcAmount >= FX_THRESHOLD_USD;
+  const activeRoute = bestRoutes[selectedRouteIndex];
+  const canBuy = isExecutable && usdcAmount >= inst.minInvestmentUsd && !isCheckingKyc && bestRoutes.length > 0;
+
+  // Bridge for RWAMarketVisualPanel
+  const panelRoute: DEXRouteResult | null = activeRoute ? {
+    chainId: inst.chains[0]?.chainId || 0,
+    fromSymbol: 'USDC',
+    toSymbol: inst.symbol,
+    fromAmountDisplay: amountUsdc,
+    toAmountDisplay: activeRoute.toAmountDisplay,
+    estimatedGasUsd: activeRoute.estimatedGasUsd,
+    routes: activeRoute.route,
+    fetchedAt: Date.now(),
+    liquidityUsd: null,
+    volume24hUsd: null,
+    priceImpactPct: activeRoute.priceImpact,
+  } : null;
 
   const handleBuy = () => {
-    if (!hasKyc)              { setShowKYCReg(true); return; }
-    if (needsFxGate && !fxPurpose) { setBuyStep('fx'); return; }
+    if (!hasKyc) return setShowKYCReg(true);
+    if (needsFxGate && !fxPurpose) return setBuyStep('fx');
     setBuyStep('confirm');
   };
 
   return (
-    <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
+    <div className="h-screen flex flex-col bg-[#020617] overflow-hidden text-slate-300 font-sans">
 
-      {/* PC 탑바 */}
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-slate-800 shrink-0">
-        <BarChart2 size={18} className="text-emerald-400" />
-        <span className="text-sm font-black text-white tracking-wide">
-          TRADE <span className="text-emerald-400">.</span>
-        </span>
-        <span className="text-xs text-slate-500">규제 준수 실물 자산 DEX 어그리게이터</span>
-        {navData && (
-          <div className="ml-auto flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-[10px] text-slate-500">DEX 가격</p>
-              <p className="text-sm font-black text-white">
-                {price?.priceUsd
-                  ? price.priceUsd >= 1000
-                    ? `$${price.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                    : `$${price.priceUsd.toFixed(4)}`
-                  : '—'}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] text-slate-500">NAV</p>
-              <p className="text-sm font-black text-slate-400">
-                {navData.navUsd >= 1000
-                  ? `$${navData.navUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                  : `$${navData.navUsd.toFixed(4)}`}
-              </p>
-            </div>
-            <div className={`px-3 py-1.5 rounded-xl text-xs font-black border ${
-              navData.isDiscount
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                : 'bg-red-500/10 border-red-500/20 text-red-400'
-            }`}>
-              {navData.spreadPct > 0 ? '+' : ''}{navData.spreadPct.toFixed(3)}%
-              <span className="ml-1 opacity-70">{navData.isDiscount ? '할인' : '프리미엄'}</span>
-            </div>
+      {/* ═══ LAYER 0: AGGREGATOR SUMMARY STRIP ═══ */}
+      <div className="flex items-center gap-5 px-6 py-2.5 bg-[#0a0f1e] border-b border-slate-800 shrink-0">
+        <div className="flex items-center gap-2 pr-5 border-r border-slate-800">
+          <Globe size={18} className="text-blue-500" />
+          <div>
+            <div className="text-[9px] text-blue-400/80 font-bold uppercase tracking-widest">RWA Market Intelligence</div>
+            <div className="text-xs font-black text-white">Best Execution Aggregator</div>
           </div>
-        )}
+        </div>
+        <div className="flex items-center gap-6 text-xs">
+          <div>
+            <p className="text-[9px] text-slate-500 font-bold">Instruments</p>
+            <p className="font-mono text-white">{totalInstruments} <span className="text-[9px] text-slate-600">({executableCount} exec · {trackedCount} tracked)</span></p>
+          </div>
+          <div>
+            <p className="text-[9px] text-slate-500 font-bold">Coverage</p>
+            <p className="font-mono text-white">{assetClasses} Classes · {supportedChains} Chains</p>
+          </div>
+          <div>
+            <p className="text-[9px] text-slate-500 font-bold">Best Discount</p>
+            <p className="font-mono text-emerald-400">
+              {bestDiscountAsset ? `${Math.abs(bestDiscountAsset[1].spreadPct).toFixed(2)}%` : 'None'}
+            </p>
+          </div>
+          <div>
+            <p className="text-[9px] text-slate-500 font-bold">Max Yield</p>
+            <p className="font-mono text-emerald-400">{maxApy.toFixed(1)}%</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <Clock size={11} className="text-slate-500" />
+            <span className="text-[9px] text-slate-400 font-mono">Live · {lastUpdated.toLocaleTimeString()}</span>
+          </div>
+        </div>
       </div>
 
-      {/* 본문 — 2컬럼 */}
+      {/* ═══ MAIN CONTENT ═══ */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ── 좌측 패널: 시장 분석 + 매수 폼 ── */}
-        <div className="w-[420px] shrink-0 border-r border-slate-800 flex flex-col overflow-hidden">
+        {/* ═══ LEFT: INSTRUMENT DETAIL + EXECUTION DRAWER ═══ */}
+        <div className="w-[520px] xl:w-[560px] shrink-0 border-r border-slate-800 flex flex-col overflow-y-auto custom-scrollbar bg-[#050914]">
 
-          {/* 자산 선택 헤더 */}
-          <div className={`flex items-center gap-3 px-5 py-4 border-b border-slate-800 ${colors.bg}`}>
-            <div className={`w-10 h-10 rounded-xl ${colors.bg} border ${colors.border} flex items-center justify-center text-xl shrink-0`}>
-              {colors.icon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-base font-black text-white">{activeAsset.symbol}</span>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${colors.bg} ${colors.text} border ${colors.border}`}>
-                  {formatApy(activeAsset.fallbackApy)}
-                </span>
+          {/* ── Instrument Header ── */}
+          <div className="p-5 border-b border-slate-800 bg-gradient-to-b from-[#0a0f1e] to-transparent">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-11 h-11 rounded-xl ${acMeta.color.bg} border ${acMeta.color.border} flex items-center justify-center text-xl shadow-lg`}>
+                  {acMeta.icon}
+                </div>
+                <div>
+                  <h1 className="text-lg font-black text-white">{inst.displayName}</h1>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs font-bold text-slate-400">{inst.issuer}</span>
+                    <span className="text-[9px] text-slate-600">·</span>
+                    <span className="text-[9px] text-slate-500">{inst.symbol}</span>
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-slate-500 truncate">{activeAsset.name}</p>
+              <div className={`px-2 py-1 rounded text-[9px] font-bold ${acMeta.color.bg} ${acMeta.color.text} border ${acMeta.color.border}`}>
+                {acMeta.label.toUpperCase()}
+              </div>
             </div>
-            <div className="text-right shrink-0">
-              <p className="text-[10px] text-slate-500">{getChainName(activeAsset.chainId)}</p>
-              <p className="text-[10px] text-slate-500">{activeAsset.issuer}</p>
+
+            {/* Structure & Rights Badges */}
+            <BadgeStrip instrument={inst} />
+
+            {/* Underlying reference */}
+            <div className="mt-3 text-[10px] text-slate-500">
+              <span className="font-bold">Underlying:</span>{' '}
+              <span className="text-slate-400">{inst.underlyingReference}</span>
             </div>
+
+            {/* Key metadata cards */}
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <div className="bg-slate-900/50 rounded-lg p-2.5 border border-slate-800">
+                <p className="text-[9px] text-slate-500 font-bold">NAV Source</p>
+                <p className="text-[11px] font-medium text-white truncate mt-0.5">{inst.navLabel}</p>
+                <p className="text-[11px] font-mono text-slate-300 mt-0.5">
+                  ${navData?.navUsd ? navData.navUsd.toFixed(4) : inst.fallbackNavUsd}
+                </p>
+              </div>
+              <div className="bg-slate-900/50 rounded-lg p-2.5 border border-slate-800">
+                <p className="text-[9px] text-slate-500 font-bold">Confidence</p>
+                <ConfidenceMeter report={confidence} />
+              </div>
+            </div>
+
+            {/* Chain deployments */}
+            {inst.chains.length > 0 && (
+              <div className="mt-3 space-y-1.5">
+                <p className="text-[9px] font-bold text-slate-500 uppercase">Available On</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {inst.chains.map(c => (
+                    <span key={c.chainId} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[10px] font-bold text-slate-400">
+                      <Database size={10} />
+                      {c.chainName}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Routers */}
+            {inst.routers.length > 0 && (
+              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                <span className="text-[9px] text-slate-600 font-bold">Routers:</span>
+                {inst.routers.filter(r => r.isLive).map(r => (
+                  <span key={r.name} className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-bold">{r.name}</span>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* 스크롤 영역: 시각화 + 매수 폼 */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4">
+          {/* ── Scrollable content area ── */}
+          <div className="p-5 pb-32 space-y-5">
 
-            {/* 시장 분석 시각화 */}
-            {navData && (
+            {/* Description */}
+            <p className="text-xs text-slate-500 leading-relaxed">{inst.description}</p>
+
+            {/* Disclosure panel */}
+            <DisclosurePanel instrument={inst} />
+
+            {/* ── Charts (preserved from original — conditional) ── */}
+            {navData && isExecutable && (
               <RWAMarketVisualPanel
                 asset={activeAsset}
                 navData={navData}
@@ -261,289 +539,205 @@ export function TradePage({ onKycRequest }: TradePageProps) {
               />
             )}
 
-            {/* 매수 폼 */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <p className="text-xs font-black text-white">매수</p>
-
-              {/* USDC 입력 */}
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 focus-within:border-slate-600 transition-colors">
-                <div className="flex justify-between mb-2">
-                  <span className="text-[10px] text-slate-500">지불 (USDC)</span>
-                  <span className="text-[10px] text-slate-500">최소 ${activeAsset.minInvestmentUsd.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-xs font-black text-blue-400 shrink-0">$</div>
-                  <input
-                    type="number" value={amountUsdc}
-                    onChange={e => { setAmountUsdc(e.target.value); setBuyStep('idle'); }}
-                    placeholder="0.00"
-                    className="flex-1 bg-transparent text-right text-2xl font-black text-white outline-none placeholder-slate-700"
-                  />
-                </div>
-                <div className="text-right mt-1">
-                  <span className="text-[10px] text-slate-600 font-mono">
-                    ≈ ₩{(usdcAmount * exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </span>
-                </div>
-              </div>
-
-              {/* 화살표 */}
-              <div className="flex justify-center">
-                <div className="bg-slate-800 p-1.5 rounded-lg border border-slate-700 text-slate-500">
-                  <ArrowRightLeft size={14} className="rotate-90" />
-                </div>
-              </div>
-
-              {/* 받는 자산 */}
-              <div className={`${colors.bg} border ${colors.border} rounded-xl p-3`}>
-                <div className="flex justify-between mb-1">
-                  <span className="text-[10px] text-slate-400">받기 ({activeAsset.symbol})</span>
-                  <span className="text-[9px] text-slate-500">
-                    {isRouteFetching ? '조회 중...' : panelRoute ? '⚡ 1inch' : '예상'}
-                  </span>
-                </div>
-                <p className={`text-2xl font-black text-right ${colors.text}`}>
-                  {panelRoute ? panelRoute.toAmountDisplay : estimatedRwa}
+            {/* For non-executable instruments: show info-only state */}
+            {!isExecutable && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-center space-y-3">
+                <Eye size={24} className="mx-auto text-slate-600" />
+                <p className="text-sm font-bold text-slate-400">
+                  {inst.executionAvailability === 'tracked_only' && 'Tracked Market'}
+                  {inst.executionAvailability === 'platform_only' && 'Platform Access Required'}
+                  {inst.executionAvailability === 'quote_only' && 'Quote Only'}
                 </p>
-              </div>
-
-              {/* FX 목적 선택 */}
-              {(needsFxGate || buyStep === 'fx') && (
-                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Info size={11} className="text-cyan-400 shrink-0" />
-                    <p className="text-[10px] text-cyan-300 font-bold">외국환거래법 — 거래 목적 필수</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {FX_PURPOSE_OPTIONS.map(opt => (
-                      <button key={opt} onClick={() => { setFxPurpose(opt); setBuyStep('idle'); }}
-                        className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border transition-all text-left ${
-                          fxPurpose === opt
-                            ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
-                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'}`}>
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* KYC 상태 */}
-              <div className={`flex items-center gap-2 rounded-xl px-3 py-2 ${
-                isCheckingKyc ? 'bg-slate-900 border border-slate-800' :
-                hasKyc ? 'bg-emerald-500/10 border border-emerald-500/20' :
-                         'bg-red-500/10 border border-red-500/20'}`}>
-                {isCheckingKyc ? <Loader2 size={11} className="animate-spin text-slate-500" />
-                  : hasKyc ? <ShieldCheck size={11} className="text-emerald-400" />
-                  : <AlertCircle size={11} className="text-red-400" />}
-                <span className={`text-[10px] font-bold ${
-                  isCheckingKyc ? 'text-slate-500' : hasKyc ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {isCheckingKyc ? 'KYC 확인 중...' : hasKyc ? 'KYC 인증 완료' : 'KYC 인증 필요'}
-                </span>
-                {!hasKyc && !isCheckingKyc && (
-                  <button onClick={() => setShowKYCReg(true)}
-                    className="ml-auto text-[10px] text-cyan-400 hover:text-cyan-300 font-bold">
-                    인증 →
-                  </button>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  {inst.executionAvailability === 'tracked_only' && 'This instrument is tracked for market intelligence. Execution is not currently integrated.'}
+                  {inst.executionAvailability === 'platform_only' && `Execute via ${inst.issuer} platform. DEX integration pending.`}
+                  {inst.executionAvailability === 'quote_only' && 'Quotes can be obtained but execution routes are not available.'}
+                </p>
+                {inst.disclaimerShort && (
+                  <p className="text-[10px] text-slate-600 italic">{inst.disclaimerShort}</p>
                 )}
               </div>
+            )}
 
-              {/* 매수 버튼 */}
-              {buyStep === 'done' ? (
-                <div className="w-full py-3 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center gap-2">
-                  <Check size={14} className="text-emerald-400" />
-                  <span className="text-sm font-black text-emerald-400">매수 완료</span>
+            {/* ── Execution / Buy Form (only for swappable_now) ── */}
+            {isExecutable && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-black text-white flex items-center gap-2">
+                    <Zap size={14} className="text-emerald-400" />
+                    Execution Quote
+                  </span>
+                  <span className="text-[10px] text-slate-500 bg-slate-950 px-2 py-1 rounded">
+                    Min ${inst.minInvestmentUsd.toLocaleString()}
+                  </span>
                 </div>
-              ) : (
-                <button onClick={handleBuy} disabled={!canBuy}
-                  className="w-full py-3 rounded-xl font-black text-sm text-white bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:opacity-40 disabled:shadow-none transition-all">
-                  {!canBuy && usdcAmount < activeAsset.minInvestmentUsd
-                    ? `최소 $${activeAsset.minInvestmentUsd.toLocaleString()} 이상`
-                    : !hasKyc ? 'KYC 인증 후 매수'
-                    : needsFxGate && !fxPurpose ? '거래 목적 선택 후 매수'
-                    : `${activeAsset.symbol} 매수하기`}
-                </button>
-              )}
-            </div>
+
+                <div className="space-y-4">
+                  {/* USDC Input */}
+                  <div className="bg-[#050914] border border-slate-800 rounded-xl p-4 focus-within:border-blue-500/50 transition-colors">
+                    <div className="flex justify-between mb-2">
+                      <span className="text-xs text-slate-500">Pay with USDC</span>
+                    </div>
+                    <input
+                      type="number" value={amountUsdc}
+                      onChange={e => { setAmountUsdc(e.target.value); setBuyStep('idle'); }}
+                      placeholder="0.00"
+                      className="w-full bg-transparent text-2xl font-black text-white outline-none placeholder-slate-700"
+                    />
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="flex justify-center -my-2 relative z-10">
+                    <div className="bg-slate-800 p-2 rounded-full border border-slate-700">
+                      <ArrowRightLeft size={14} className="rotate-90 text-slate-400" />
+                    </div>
+                  </div>
+
+                  {/* Output */}
+                  <div className={`${activeRoute ? 'bg-blue-500/10 border-blue-500/30' : 'bg-[#050914] border-slate-800'} border rounded-xl p-4 transition-colors min-h-[80px]`}>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-xs text-slate-400">Receive {inst.symbol}</span>
+                      <span className="text-[10px] text-slate-500">
+                        {isRouteFetching ? 'Scanning venues...' : activeRoute ? activeRoute.providerName : ''}
+                      </span>
+                    </div>
+                    {isRouteFetching ? (
+                      <div className="animate-pulse flex items-center justify-between h-8">
+                        <div className="h-7 bg-slate-800 rounded w-1/2" />
+                        <Loader2 className="animate-spin text-blue-400" size={18} />
+                      </div>
+                    ) : activeRoute ? (
+                      <p className="text-2xl font-black text-white">{activeRoute.toAmountDisplay}</p>
+                    ) : (
+                      <p className="text-2xl font-black text-slate-700">0.00</p>
+                    )}
+                  </div>
+
+                  {/* Route Comparison */}
+                  {bestRoutes.length > 0 && (
+                    <div className="bg-slate-950 rounded-xl border border-slate-800 p-3">
+                      <div className="flex items-center justify-between cursor-pointer" onClick={() => setBuyStep(buyStep === 'compare' ? 'idle' : 'compare')}>
+                        <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                          <RouteIcon size={14} />
+                          {bestRoutes.length > 1 ? `Compare ${bestRoutes.length} Routes` : 'Route Details'}
+                        </span>
+                        <ChevronDown size={14} className={`text-slate-500 transition-transform ${buyStep === 'compare' ? 'rotate-180' : ''}`} />
+                      </div>
+                      {buyStep === 'compare' && (
+                        <div className="space-y-3 mt-2 pt-2 border-t border-slate-800">
+                          {bestRoutes.map((rt, i) => (
+                            <div key={i} onClick={() => { setSelectedRouteIndex(i); setBuyStep('confirm'); }}
+                              className={`p-3 rounded-xl border text-left cursor-pointer transition-colors ${
+                                selectedRouteIndex === i ? 'bg-blue-500/10 border-blue-500/30' : 'bg-slate-900 border-slate-800 hover:border-slate-600'
+                              }`}>
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <p className="text-xs font-black text-white">{rt.providerName}</p>
+                                  <p className="text-[10px] text-slate-500">
+                                    Score: <strong className={i === 0 ? 'text-emerald-400' : 'text-white'}>{rt.executionScore}</strong>
+                                  </p>
+                                </div>
+                                <p className="text-sm font-mono font-black text-white">{rt.toAmountDisplay} {inst.symbol}</p>
+                              </div>
+                              <div className="grid grid-cols-4 gap-1 pt-2 border-t border-slate-800/60">
+                                <div className="p-1 rounded bg-slate-950 text-center">
+                                  <p className="text-[8px] text-slate-500 font-bold">Output</p>
+                                  <p className="text-[10px] text-emerald-400 font-mono">+{rt.scoreBreakdown.baseOutput}</p>
+                                </div>
+                                <div className="p-1 rounded bg-slate-950 text-center">
+                                  <p className="text-[8px] text-slate-500 font-bold">Impact</p>
+                                  <p className="text-[10px] text-red-400 font-mono">{rt.scoreBreakdown.priceImpactPenalty}</p>
+                                </div>
+                                <div className="p-1 rounded bg-slate-950 text-center">
+                                  <p className="text-[8px] text-slate-500 font-bold">Gas</p>
+                                  <p className="text-[10px] text-red-400 font-mono">{rt.scoreBreakdown.gasPenalty}</p>
+                                </div>
+                                <div className="p-1 rounded bg-slate-950 text-center">
+                                  <p className="text-[8px] text-slate-500 font-bold">NAV Δ</p>
+                                  <p className={`text-[10px] font-mono ${rt.scoreBreakdown.navDiscountBonus > 0 ? 'text-emerald-400' : rt.scoreBreakdown.navDiscountBonus < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                                    {rt.scoreBreakdown.navDiscountBonus > 0 ? '+' : ''}{rt.scoreBreakdown.navDiscountBonus}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Execution Intelligence */}
+                  {activeRoute && buyStep !== 'compare' && (
+                    <div className="bg-emerald-500/5 rounded-xl border border-emerald-500/20 p-3">
+                      <p className="text-[10px] font-bold text-emerald-400 mb-1 flex items-center gap-1"><Star size={10} /> Execution Intelligence</p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Best output via <strong className="text-white">{activeRoute.providerName}</strong>
+                        {inst.chains[0] && ` on ${inst.chains[0].chainName}`}.
+                        {activeRoute.navSpread < 0 ? ` ${Math.abs(activeRoute.navSpread).toFixed(2)}% discount to NAV.` : ''}
+                        {' '}Impact: {(activeRoute.priceImpact || 0).toFixed(2)}%.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* KYC & FX Gates (preserved) */}
+                  {activeRoute && (
+                    <>
+                      {(needsFxGate || buyStep === 'fx') && (
+                        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <Info size={11} className="text-cyan-400 shrink-0" />
+                            <p className="text-[10px] text-cyan-300 font-bold">FX Gate — 거래 목적 필수</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {FX_PURPOSE_OPTIONS.map(opt => (
+                              <button key={opt} onClick={() => { setFxPurpose(opt); setBuyStep('confirm'); }}
+                                className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border transition-all text-left ${
+                                  fxPurpose === opt ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'bg-slate-900 border-slate-800 text-slate-400'
+                                }`}>{opt}</button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className={`flex items-center gap-2 rounded-xl px-3 py-2 ${hasKyc ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
+                        {hasKyc ? <ShieldCheck size={11} className="text-emerald-400" /> : <AlertCircle size={11} className="text-red-400" />}
+                        <span className={`text-[10px] font-bold ${hasKyc ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {hasKyc ? 'KYC Verified' : 'KYC Required'}
+                        </span>
+                        {!hasKyc && (
+                          <button onClick={() => setShowKYCReg(true)} className="ml-auto text-[10px] text-blue-400 hover:text-blue-300 font-bold">Verify →</button>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Buy Button */}
+                  <button onClick={handleBuy} disabled={!canBuy || isRouteFetching}
+                    className="w-full py-3 rounded-xl font-black text-sm text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:bg-slate-800 transition-all shadow-[0_0_15px_rgba(37,99,235,0.2)]">
+                    {isRouteFetching ? 'Scanning Venues...'
+                      : !canBuy && usdcAmount < inst.minInvestmentUsd && usdcAmount > 0 ? `Min $${inst.minInvestmentUsd.toLocaleString()}`
+                      : !canBuy && usdcAmount > 0 ? 'No viable route'
+                      : !hasKyc ? 'Complete KYC'
+                      : needsFxGate && !fxPurpose ? 'Select FX Purpose'
+                      : 'Execute Order'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ── 우측 패널: 자산 목록 ── */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <PCAssetList
-            assets={ALL_RWA_ASSETS}
-            activeAsset={activeAsset}
+        {/* ═══ RIGHT: MARKET SCANNER ═══ */}
+        <div className="flex-1 bg-[#0a0f1e] flex flex-col overflow-hidden">
+          <RWAMarketScanner
             prices={prices}
             navMap={navMap}
-            onSelect={handleAssetSelect}
-            isLoading={isLoading}
+            onSelectInstrument={handleInstrumentSelect}
+            selectedId={selectedInstrument.id}
           />
         </div>
       </div>
 
-      {showKYCReg && (
-        <KYCRegistrationModal
-          onClose={() => setShowKYCReg(false)}
-          onSuccess={() => window.location.reload()}
-        />
-      )}
-    </div>
-  );
-}
-
-// ============================================================
-// PC 전용 자산 목록 (테이블형)
-// ============================================================
-function PCAssetList({
-  assets, activeAsset, prices, navMap, onSelect, isLoading,
-}: {
-  assets: RWAAsset[];
-  activeAsset: RWAAsset;
-  prices: RWAPriceMap;
-  navMap: NAVMap;
-  onSelect: (a: RWAAsset) => void;
-  isLoading: boolean;
-}) {
-  return (
-    <div className="p-5 space-y-3">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-black text-white">자산 목록</p>
-        <p className="text-[10px] text-slate-500">{assets.length}개 RWA 자산</p>
-      </div>
-
-      {/* 컬럼 헤더 */}
-      <div className="grid grid-cols-6 gap-2 px-3 pb-1 border-b border-slate-800">
-        {['자산', 'DEX 가격', 'NAV', '괴리율', 'APY / 수익', '유동성'].map(h => (
-          <p key={h} className="text-[9px] text-slate-600 font-bold">{h}</p>
-        ))}
-      </div>
-
-      {/* 자산 행 */}
-      {isLoading ? (
-        <div className="space-y-2">
-          {[0,1,2,3,4].map(i => (
-            <div key={i} className="h-14 bg-slate-900 rounded-xl animate-pulse" />
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          {assets.map(asset => {
-            const price   = prices[asset.id];
-            const nav     = navMap[asset.id];
-            const liq     = RWA_LIQUIDITY_FALLBACK[asset.id];
-            const colors  = RWA_CATEGORY_COLORS[asset.category];
-            const isActive = activeAsset.id === asset.id;
-
-            const priceDisplay = price?.priceUsd
-              ? price.priceUsd >= 1000
-                ? `$${price.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                : `$${price.priceUsd.toFixed(4)}`
-              : '—';
-
-            const navDisplay = nav?.navUsd
-              ? nav.navUsd >= 1000
-                ? `$${nav.navUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                : `$${nav.navUsd.toFixed(4)}`
-              : '—';
-
-            const liqDisplay = liq
-              ? liq.liquidityUsd >= 1_000_000
-                ? `$${(liq.liquidityUsd / 1_000_000).toFixed(1)}M`
-                : `$${(liq.liquidityUsd / 1_000).toFixed(0)}K`
-              : '—';
-
-            return (
-              <button key={asset.id} onClick={() => onSelect(asset)}
-                className={`w-full grid grid-cols-6 gap-2 items-center px-3 py-3 rounded-xl border text-left transition-all ${
-                  isActive
-                    ? `${colors.bg} ${colors.border} border`
-                    : 'bg-slate-900/50 border-slate-800 hover:bg-slate-900 hover:border-slate-700'
-                }`}>
-
-                {/* 자산 */}
-                <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-lg ${colors.bg} border ${colors.border} flex items-center justify-center text-sm shrink-0`}>
-                    {colors.icon}
-                  </div>
-                  <div>
-                    <p className={`text-xs font-black ${isActive ? colors.text : 'text-white'}`}>
-                      {asset.symbol}
-                    </p>
-                    <p className="text-[9px] text-slate-600 truncate">{asset.issuer}</p>
-                  </div>
-                </div>
-
-                {/* DEX 가격 */}
-                <div>
-                  <p className="text-xs font-bold text-white">{priceDisplay}</p>
-                  {price?.change24h !== undefined && (
-                    <p className={`text-[9px] font-bold ${price.change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {price.change24h >= 0 ? '+' : ''}{price.change24h.toFixed(2)}%
-                    </p>
-                  )}
-                </div>
-
-                {/* NAV */}
-                <p className="text-xs text-slate-400 font-mono">{navDisplay}</p>
-
-                {/* 괴리율 */}
-                {nav ? (
-                  <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black w-fit ${
-                    nav.isDiscount
-                      ? 'bg-emerald-500/15 text-emerald-400'
-                      : 'bg-red-500/10 text-red-400'
-                  }`}>
-                    {nav.spreadPct > 0 ? '+' : ''}{nav.spreadPct.toFixed(3)}%
-                  </div>
-                ) : <p className="text-[9px] text-slate-600">—</p>}
-
-                {/* APY */}
-                <div>
-                  <p className={`text-xs font-black ${asset.fallbackApy > 0 ? 'text-emerald-400' : 'text-teal-400'}`}>
-                    {formatApy(asset.fallbackApy)}
-                  </p>
-                  {asset.fallbackApy > 0 && (
-                    <p className="text-[9px] text-slate-600">
-                      $10K→ +${((10000 * asset.fallbackApy) / 100).toFixed(0)}/yr
-                    </p>
-                  )}
-                </div>
-
-                {/* 유동성 */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-slate-300 font-mono">{liqDisplay}</p>
-                    {liq && (
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <div className={`w-1 h-1 rounded-full ${
-                          liq.liquidityUsd >= 10_000_000 ? 'bg-emerald-400'
-                          : liq.liquidityUsd >= 1_000_000 ? 'bg-teal-400'
-                          : 'bg-blue-400'
-                        }`} />
-                        <p className="text-[9px] text-slate-600">TVL</p>
-                      </div>
-                    )}
-                  </div>
-                  <ChevronRight size={12} className={isActive ? colors.text : 'text-slate-700'} />
-                </div>
-              </button>
-            );
-          })}
-
-          {/* Coming Soon */}
-          <div className="w-full grid grid-cols-6 gap-2 items-center px-3 py-3 rounded-xl border border-dashed border-slate-800 opacity-40">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-sm">📋</div>
-              <div>
-                <p className="text-xs font-black text-slate-500">Credit</p>
-                <p className="text-[9px] text-slate-700">Maple / Centrifuge</p>
-              </div>
-            </div>
-            <p className="text-[9px] text-slate-700 col-span-5">준비 중 — Coming Soon</p>
-          </div>
-        </div>
-      )}
+      {showKYCReg && <KYCRegistrationModal onClose={() => setShowKYCReg(false)} onSuccess={() => window.location.reload()} />}
     </div>
   );
 }

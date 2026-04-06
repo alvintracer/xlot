@@ -13,6 +13,7 @@ export interface PriceData {
         btc: TokenPrice;
         sol: TokenPrice;
         trx: TokenPrice;
+        inj: TokenPrice;
         dai: TokenPrice;
         pyusd: TokenPrice;
         xsgd: TokenPrice;
@@ -35,6 +36,7 @@ const DEFAULT_PRICES: PriceData = {
         btc: { krw: 135000000, usd: 95000, change: 0 },
         sol: { krw: 200000, usd: 140, change: 0 },
         trx: { krw: 200, usd: 0.15, change: 0 },
+        inj: { krw: 30000, usd: 20, change: 0 },
         dai: { krw: 1450, usd: 1.0, change: 0 },
         pyusd: { krw: 1450, usd: 1.0, change: 0 },
         xsgd: { krw: 1085, usd: 0.74, change: 0 },
@@ -61,7 +63,7 @@ export async function fetchCryptoPrices(): Promise<PriceData> {
         }
 
         const response = await fetch(
-            "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,matic-network,tether,usd-coin,bitcoin,solana,tron,dai,paypal-usd,xsgd,jpy-coin,euro-coin&vs_currencies=krw,usd&include_24hr_change=true",
+            "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,matic-network,tether,usd-coin,bitcoin,solana,tron,injective-protocol,dai,paypal-usd,xsgd,jpy-coin,euro-coin&vs_currencies=krw,usd&include_24hr_change=true",
             { method: 'GET', headers: cgHeaders }
         );
 
@@ -87,6 +89,7 @@ export async function fetchCryptoPrices(): Promise<PriceData> {
                 btc: getPrice('bitcoin', 'btc'),
                 sol: getPrice('solana', 'sol'),
                 trx: getPrice('tron', 'trx'),
+                inj: getPrice('injective-protocol', 'inj'),
                 dai: getPrice('dai', 'dai'),
                 pyusd: getPrice('paypal-usd', 'pyusd'),
                 xsgd: getPrice('xsgd', 'xsgd'),

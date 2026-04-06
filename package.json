@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@injectivelabs/sdk-ts": "^1.18.17",
     "@noble/ed25519": "^3.0.1",
     "@noble/hashes": "^2.0.1",
     "@solana/web3.js": "^1.98.4",

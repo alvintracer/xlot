@@ -125,6 +125,7 @@ export interface WalletSlot {
         sol?: string;
         btc?: string;
         trx?: string;
+        inj?: string;
     };
     
     assets: WalletAsset[];
@@ -133,6 +134,7 @@ export interface WalletSlot {
         sol?: number;
         btc?: number;
         trx?: number;
+        inj?: number;
         krw?: number;
         usd?: number;
     };
@@ -160,6 +162,50 @@ const getTronWeb = () => {
     }
     return _tronWeb;
 };
+
+// ── EVM → INJ 주소 변환 (Bech32) ────────────────────────────
+// Injective는 EVM과 동일한 secp256k1 키를 사용하므로
+// EVM 주소 bytes를 Bech32 "inj" 프리픽스로 인코딩하면 INJ 주소가 됨
+function evmToInjAddress(evmAddress: string): string {
+    const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+    const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+    function polymod(values: number[]) {
+        let chk = 1;
+        for (const v of values) {
+            const b = chk >> 25;
+            chk = ((chk & 0x1ffffff) << 5) ^ v;
+            for (let i = 0; i < 5; i++) if ((b >> i) & 1) chk ^= GEN[i];
+        }
+        return chk;
+    }
+    const hrp = 'inj';
+    const hrpExp = [...hrp].map(c => c.charCodeAt(0) >> 5).concat([0]).concat([...hrp].map(c => c.charCodeAt(0) & 31));
+    // Convert 20-byte address to 5-bit words
+    const hex = evmAddress.replace('0x', '').toLowerCase();
+    const bytes = new Uint8Array(20);
+    for (let i = 0; i < 20; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    const words: number[] = [];
+    let acc = 0, bits = 0;
+    for (const b of bytes) { acc = (acc << 8) | b; bits += 8; while (bits >= 5) { bits -= 5; words.push((acc >> bits) & 31); } }
+    if (bits > 0) words.push((acc << (5 - bits)) & 31);
+    // Checksum
+    const values = hrpExp.concat(words).concat([0, 0, 0, 0, 0, 0]);
+    const pm = polymod(values) ^ 1;
+    const checksum: number[] = [];
+    for (let i = 0; i < 6; i++) checksum.push((pm >> (5 * (5 - i))) & 31);
+    return hrp + '1' + words.concat(checksum).map(d => CHARSET[d]).join('');
+}
+
+// INJ Fetcher (Cosmos LCD REST)
+async function fetchInjectiveBalance(injAddress: string): Promise<number> {
+    try {
+        const res = await fetch(`https://sentry.lcd.injective.network/cosmos/bank/v1beta1/balances/${injAddress}`);
+        const data = await res.json();
+        const balances: { denom: string; amount: string }[] = data?.balances ?? [];
+        const injEntry = balances.find(b => b.denom === 'inj');
+        return injEntry ? Number(injEntry.amount) / 1e18 : 0;
+    } catch (e) { return 0; }
+}
 
 // BTC Fetcher
 async function fetchBitcoinBalance(address: string): Promise<number> {
@@ -203,7 +249,9 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                 evm: slot.address || undefined,
                 sol: slot.address_sol || undefined,
                 btc: slot.address_btc || undefined,
-                trx: slot.address_trx || undefined
+                trx: slot.address_trx || undefined,
+                // INJ: DB에 저장된 값 우선, 없으면 EVM 주소에서 자동 파생
+                inj: slot.address_inj || (slot.address ? evmToInjAddress(slot.address) : undefined)
             },
             assets: [],
             balances: {},
@@ -497,7 +545,28 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                 }
             }
 
-            // F. 총 가치 계산
+            // F. Injective
+            if (wallet.addresses.inj) {
+                try {
+                    const injVal = await fetchInjectiveBalance(wallet.addresses.inj);
+                    wallet.balances.inj = injVal;
+                    if (injVal > 0) {
+                        const injPrices = prices?.tokens as any;
+                        wallet.assets.push({
+                            symbol: "INJ",
+                            name: "Injective",
+                            balance: injVal,
+                            price: injPrices?.inj?.usd || 0,
+                            value: injVal * (injPrices?.inj?.usd || 0),
+                            change: injPrices?.inj?.change || 0,
+                            network: "Injective",
+                            isNative: true
+                        });
+                    }
+                } catch (e) { wallet.balances.inj = 0; }
+            }
+
+            // G. 총 가치 계산
             const totalUsd = wallet.assets.reduce((acc, cur) => acc + cur.value, 0);
             wallet.total_value_krw = Math.floor(totalUsd * exchangeRate) + (wallet.balances.krw || 0);
 
@@ -586,7 +655,7 @@ export async function addWeb3Wallet(userId: string, address: string, label: stri
 // SSS 비수탁 지갑 — EVM/SOL/BTC/TRX 주소를 한 번에 저장
 export async function addSSSWallet(
     userId: string,
-    addresses: { evm: string; sol?: string; btc?: string; trx?: string },
+    addresses: { evm: string; sol?: string; btc?: string; trx?: string; inj?: string },
     label: string,
 ) {
     const { data } = await supabase
@@ -603,6 +672,7 @@ export async function addSSSWallet(
         address_sol:  addresses.sol  || null,
         address_btc:  addresses.btc  || null,
         address_trx:  addresses.trx  || null,
+        address_inj:  addresses.inj  || null,
         label,
         wallet_type:  'XLOT_SSS',
         device_uuid:  getDeviceId(),
@@ -659,13 +729,14 @@ export async function deleteWallet(id: string) {
 
 export async function updateWalletAddresses(
     slotId: string,
-    addresses: { evm?: string; sol?: string; btc?: string; trx?: string }
+    addresses: { evm?: string; sol?: string; btc?: string; trx?: string; inj?: string }
 ) {
     const updates: any = {};
     if (addresses.evm) updates.address = addresses.evm;
     if (addresses.sol) updates.address_sol = addresses.sol;
     if (addresses.btc) updates.address_btc = addresses.btc;
     if (addresses.trx) updates.address_trx = addresses.trx;
+    if (addresses.inj) updates.address_inj = addresses.inj;
     if (Object.keys(updates).length === 0) return;
     await supabase.from('user_wallets').update(updates).eq('id', slotId);
 }

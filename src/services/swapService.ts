@@ -7,7 +7,7 @@ import { CHAIN_IDS } from '../constants/tokens';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface SwapQuote {
-  provider: '1INCH' | '0X';
+  provider: string;
   fromToken: { symbol: string; address: string; decimals: number };
   toToken:   { symbol: string; address: string; decimals: number };
   fromAmount: string;
@@ -135,9 +135,9 @@ function toWei(amount: string, decimals: number): string {
   return Math.floor(val * 10 ** decimals).toString();
 }
 
-function fromWei(amount: string, decimals: number): string {
+export function fromWei(amount: string, decimals: number): string {
   const val = BigInt(amount);
-  const divisor = BigInt(10 ** decimals);
+  const divisor = BigInt(Math.pow(10, decimals));
   const whole = val / divisor;
   const remainder = val % divisor;
   const fraction = remainder.toString().padStart(decimals, '0').slice(0, 6).replace(/0+$/, '');
@@ -251,6 +251,74 @@ export async function get0xQuote(
       priceImpact: parseFloat(data.estimatedPriceImpact || '0'), 
       route,
       tx: { from: walletAddress, to: data.to, data: data.data, value: data.value, gas: data.estimatedGas || '200000', gasPrice: data.gasPrice || '30000000000' },
+  };
+}
+
+export async function getJupiterQuote(
+  fromAddress: string,
+  toAddress: string,
+  amountWei: string,
+  fromDecimals: number,
+  toDecimals: number,
+  slippagePct: number = 0.5,
+): Promise<SwapQuote> {
+  const url = `https://quote-api.jup.ag/v6/quote?inputMint=${fromAddress}&outputMint=${toAddress}&amount=${amountWei}&slippageBps=${Math.round(slippagePct * 100)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Jupiter API Error`);
+  const data = await res.json();
+
+  const toAmountWei = data.outAmount;
+  const route: RouteProtocol[] = data.routePlan ? data.routePlan.map((r: any) => ({ name: r.swapInfo.label || 'Jupiter', part: r.percent })) : [{name: 'Jupiter', part: 100}];
+
+  return {
+      provider: 'JUPITER',
+      fromToken: { symbol: '', address: fromAddress, decimals: fromDecimals },
+      toToken:   { symbol: '', address: toAddress,   decimals: toDecimals },
+      fromAmount: amountWei,
+      toAmount:   toAmountWei,
+      toAmountDisplay: fromWei(toAmountWei, toDecimals),
+      estimatedGasUsd: 0.001, // Solana gas is negligible
+      priceImpact: parseFloat(data.priceImpactPct || '0') * 100,
+      route,
+  };
+}
+
+export async function getOdosQuote(
+  chainId: number,
+  fromAddress: string,
+  toAddress: string,
+  amountWei: string,
+  fromDecimals: number,
+  toDecimals: number,
+  walletAddress: string,
+  slippagePct: number = 0.5,
+): Promise<SwapQuote> {
+  const body = {
+    chainId,
+    inputTokens: [{ tokenAddress: fromAddress, amount: amountWei }],
+    outputTokens: [{ tokenAddress: toAddress, proportion: 1 }],
+    userAddr: walletAddress,
+    slippageLimitPercent: slippagePct,
+  };
+  const res = await fetch('https://api.odos.xyz/sor/quote/v2', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error('Odos API Error');
+  const data = await res.json();
+  const toAmountWei = data.outAmounts[0];
+  
+  return {
+      provider: 'ODOS',
+      fromToken: { symbol: '', address: fromAddress, decimals: fromDecimals },
+      toToken:   { symbol: '', address: toAddress,   decimals: toDecimals },
+      fromAmount: amountWei,
+      toAmount:   toAmountWei,
+      toAmountDisplay: fromWei(toAmountWei, toDecimals),
+      estimatedGasUsd: data.gasEstimateValue || 2.0,
+      priceImpact: data.priceImpact || 0,
+      route: [{ name: 'Odos Router', part: 100 }]
   };
 }
 

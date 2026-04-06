@@ -410,7 +410,7 @@ export function LiquidityDonut({
 
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 px-2">
         {/* 도넛 */}
-        <div className="flex-shrink-0 w-36 sm:w-32 xl:w-40 2xl:w-48 mx-auto sm:mx-0">
+        <div className="flex-shrink-0 w-44 sm:w-40 xl:w-48 2xl:w-56 mx-auto sm:mx-0">
           <svg viewBox="0 0 160 160" className="w-full h-auto drop-shadow-xl">
           {slices.map((sl, i) => (
             <g key={i}>
@@ -450,17 +450,17 @@ export function LiquidityDonut({
         <div className="flex-1 w-full space-y-3">
           {slices.map((sl, i) => (
             <div key={i} className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <div className="w-3 h-3 rounded-md shrink-0 border border-slate-700/50"
                   style={{ backgroundColor: sl.color }} />
                 <span className="text-sm font-bold text-slate-300 truncate">{sl.label}</span>
               </div>
-              <div className="text-right shrink-0 max-w-[50%] truncate">
-                <span className="text-sm font-black text-white">{Math.round(sl.value)}%</span>
+              <div className="text-right shrink-0">
+                <div className="text-sm sm:text-base font-black text-white leading-none">{Math.round(sl.value)}%</div>
                 {totalLiq > 0 && (
-                  <span className="text-xs text-slate-500 ml-2 font-mono truncate">
+                  <div className="text-[10px] sm:text-xs text-slate-500 font-mono mt-0.5">
                     {fmtLiq(totalLiq * sl.value / 100)}
-                  </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -501,19 +501,19 @@ export function RWAMarketVisualPanel({
   if (!navData) return null;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-5">
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-6 shadow-lg">
 
       {/* 헤더 */}
       <div className="flex items-center gap-3">
-        <div className="w-2 h-5 rounded-full bg-cyan-400" />
-        <span className="text-base font-black text-white">시장 분석</span>
-        <span className="text-xs font-bold text-slate-500 ml-auto bg-slate-800 px-3 py-1 rounded-full">
+        <div className="w-2.5 h-6 rounded-full bg-cyan-400" />
+        <span className="text-lg font-black text-white">시장 분석</span>
+        <span className="text-sm font-bold text-slate-500 ml-auto bg-slate-800 px-4 py-1.5 rounded-full">
           {asset.symbol} · 실시간
         </span>
       </div>
 
       {/* 1. 가격 비교 (역사적 라인 차트) */}
-      <div className="bg-slate-950/60 rounded-xl p-4">
+      <div className="bg-slate-950/60 rounded-xl p-5 border border-slate-800/50">
         <HistoricalPriceChart
           asset={asset}
           navData={navData}
@@ -524,7 +524,7 @@ export function RWAMarketVisualPanel({
       <div className="border-t border-slate-800" />
 
       {/* 2. 스프레드 게이지 */}
-      <div className="bg-slate-950/60 rounded-xl p-3">
+      <div className="bg-slate-950/60 rounded-xl p-5 border border-slate-800/50">
         <SpreadGauge navData={navData} />
       </div>
 
@@ -532,7 +532,7 @@ export function RWAMarketVisualPanel({
       <div className="border-t border-slate-800" />
 
       {/* 3. 유동성 도넛 */}
-      <div className="bg-slate-950/60 rounded-xl p-3">
+      <div className="bg-slate-950/60 rounded-xl p-5 border border-slate-800/50">
         <LiquidityDonut
           routeResult={routeResult}
           liquidityFallback={liquidityFallback}

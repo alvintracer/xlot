@@ -24,6 +24,7 @@ export interface MultiChainAddresses {
   sol?: string;
   trx?: string;
   btc?: string;
+  inj?: string;
 }
 
 // ── Web Crypto HMAC-SHA512 ───────────────────────────────────
@@ -159,20 +160,81 @@ async function deriveBTC(mnemonic: string): Promise<string> {
   } catch { return ''; }
 }
 
+// ── Bech32 (Injective 주소용) ────────────────────────────────
+const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+
+function bech32Polymod(values: number[]): number {
+  const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+  let chk = 1;
+  for (const v of values) {
+    const b = chk >> 25;
+    chk = ((chk & 0x1ffffff) << 5) ^ v;
+    for (let i = 0; i < 5; i++) if ((b >> i) & 1) chk ^= GEN[i];
+  }
+  return chk;
+}
+
+function bech32HrpExpand(hrp: string): number[] {
+  const ret: number[] = [];
+  for (let i = 0; i < hrp.length; i++) ret.push(hrp.charCodeAt(i) >> 5);
+  ret.push(0);
+  for (let i = 0; i < hrp.length; i++) ret.push(hrp.charCodeAt(i) & 31);
+  return ret;
+}
+
+function bech32CreateChecksum(hrp: string, data: number[]): number[] {
+  const values = bech32HrpExpand(hrp).concat(data).concat([0, 0, 0, 0, 0, 0]);
+  const polymod = bech32Polymod(values) ^ 1;
+  const ret: number[] = [];
+  for (let i = 0; i < 6; i++) ret.push((polymod >> (5 * (5 - i))) & 31);
+  return ret;
+}
+
+function convertBits(data: Uint8Array, fromBits: number, toBits: number, pad: boolean): number[] {
+  let acc = 0, bits = 0;
+  const ret: number[] = [];
+  const maxv = (1 << toBits) - 1;
+  for (const value of data) {
+    acc = (acc << fromBits) | value;
+    bits += fromBits;
+    while (bits >= toBits) { bits -= toBits; ret.push((acc >> bits) & maxv); }
+  }
+  if (pad) { if (bits > 0) ret.push((acc << (toBits - bits)) & maxv); }
+  return ret;
+}
+
+function bech32Encode(hrp: string, data: Uint8Array): string {
+  const words = convertBits(data, 8, 5, true);
+  const checksum = bech32CreateChecksum(hrp, words);
+  return hrp + '1' + words.concat(checksum).map(d => BECH32_CHARSET[d]).join('');
+}
+
+// ── INJ ─────────────────────────────────────────────────────
+function deriveINJ(mnemonic: string): string {
+  try {
+    const child = getRoot(mnemonic).derivePath("m/44'/60'/0'/0/0");
+    const evmAddr = new ethers.Wallet(child.privateKey).address;
+    const addrBytes = ethers.getBytes(evmAddr);
+    return bech32Encode('inj', addrBytes);
+  } catch { return ''; }
+}
+
 // ── 메인 export ──────────────────────────────────────────────
 export async function deriveMultiChainAddresses(
   mnemonic: string,
 ): Promise<MultiChainAddresses> {
-  const [evm, sol, trx, btc] = await Promise.all([
+  const [evm, sol, trx, btc, inj] = await Promise.all([
     Promise.resolve(deriveEVM(mnemonic)),
     deriveSOL(mnemonic),
     deriveTRX(mnemonic),
     deriveBTC(mnemonic),
+    Promise.resolve(deriveINJ(mnemonic)),
   ]);
   return {
     evm,
     sol: sol || undefined,
     trx: trx || undefined,
     btc: btc || undefined,
+    inj: inj || undefined,
   };
 }
