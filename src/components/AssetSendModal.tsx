@@ -55,7 +55,7 @@ import {
 } from '../services/travelRuleService';
 import { TravelRuleModal } from './TravelRuleModal';
 import { signPermit, relayPermitTransfer, requestTronJit, requestSolInit, checkSolAccountExists, PERMIT_SUPPORTED_TOKENS } from '../services/gaslessService';
-import { sendSOL, sendTRX, sendBTC, sendTRC20 } from '../services/multiChainSendService';
+import { sendSOL, sendSPLToken, sendSPLTokenRelayed, sendTRX, sendBTC, sendTRC20 } from '../services/multiChainSendService';
 import { ethers } from "ethers";
 import { SSSSigningModal } from "./SSSSigningModal";
 import type { SSSSigningResult } from "./SSSSigningModal";
@@ -166,8 +166,12 @@ export function SendModal({ onClose }: { onClose: () => void }) {
         } as WalletAsset]));
       }
       if (selectedWallet.addresses.sol) {
-        const s = assets.find(a => a.symbol === 'SOL');
+        // SOL 네이티브
+        const s = assets.find(a => a.symbol === 'SOL' && a.isNative);
         result.push(s || { symbol: 'SOL', name: 'Solana', balance: 0, price: prices?.tokens?.sol?.usd || 0, value: 0, change: 0, network: 'Solana', isNative: true } as WalletAsset);
+        // SPL 토큰 (USDC, USDT 등 — 잔액 있는 것만)
+        const splAssets = assets.filter(a => a.network === 'Solana' && !a.isNative && a.balance > 0);
+        result.push(...splAssets);
       }
       if (selectedWallet.addresses.btc) {
         const b = assets.find(a => a.symbol === 'BTC');
@@ -241,6 +245,16 @@ export function SendModal({ onClose }: { onClose: () => void }) {
       const receive = amount - fee;
       if (receive <= 0) return { type: 'error' as const, fee, receive: 0 };
       return { type: 'stablecoin' as const, fee: parseFloat(fee.toFixed(2)), receive: parseFloat(receive.toFixed(2)), sym };
+    }
+
+    // USDT / USDC (Solana 릴레이) — SOL 없을 때: 수수료 max(0.2%, 0.1)
+    const solBal = selectedWallet?.balances?.sol ?? 0;
+    if ((sym === 'USDT' || sym === 'USDC') && net === 'Solana' && solBal < 0.001) {
+      const byRate = amount * 0.002;
+      const fee    = Math.max(byRate, 0.1);
+      const receive = amount - fee;
+      if (receive <= 0) return { type: 'error' as const, fee, receive: 0 };
+      return { type: 'stablecoin' as const, fee: parseFloat(fee.toFixed(4)), receive: parseFloat(receive.toFixed(4)), sym, relay: true };
     }
 
     // 네이티브 코인 — 정적 추정 (API 호출 없음)
@@ -381,8 +395,8 @@ export function SendModal({ onClose }: { onClose: () => void }) {
         try {
             // ── XLOT_SSS: SSS 서명 모달 경유 ──────────────────────────
             if (selectedWallet.wallet_type === 'XLOT_SSS') {
-              // ── SOL 전송 (with optional Rent JIT check) ─────────────────────────
-              if (selectedAsset.network === 'Solana') {
+              // ── SOL 네이티브 전송 ─────────────────────────────────────────────
+              if (selectedAsset.network === 'Solana' && selectedAsset.isNative) {
                 const currentRefId = travelRuleRefId;
                 const currentPayload = travelRulePayload;
                 setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
@@ -407,6 +421,60 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                   } catch (e: any) { toast.error('SOL 전송 실패: ' + e.message); }
                 });
                 setSssSigningPurpose(`${finalTokenAmount} SOL → ${toAddress.slice(0,8)}...`);
+                setSssSigningOpen(true);
+                return;
+              }
+              // ── Solana SPL 토큰 전송 (USDC / USDT 등) ──────────────────────────
+              if (selectedAsset.network === 'Solana' && !selectedAsset.isNative && selectedAsset.tokenAddress) {
+                const mintAddress    = selectedAsset.tokenAddress;
+                const splDecimals    = 6; // USDC / USDT 모두 6 decimals
+                const currentRefId   = travelRuleRefId;
+                const currentPayload = travelRulePayload;
+                const solBalance     = selectedWallet.balances?.sol ?? 0;
+                // SOL 0.001 미만 → 릴레이어 대납 경로 (수수료 0.2% 원자적 차감)
+                const useRelay       = solBalance < 0.001;
+
+                setSssPendingTx(() => async (_w: ethers.Wallet, mn: string) => {
+                  try {
+                    let result: { txHash: string; chain: string };
+                    let feeNote = '';
+
+                    if (useRelay) {
+                      // 릴레이어 fee payer 경로 — SOL 불필요
+                      const relayResult = await sendSPLTokenRelayed(
+                        mn, mintAddress, splDecimals,
+                        toAddress, parseFloat(finalTokenAmount),
+                      );
+                      result  = relayResult;
+                      feeNote = ` (네트워크 수수료 ${relayResult.feeAmount.toFixed(4)} ${selectedAsset.symbol} 차감)`;
+                    } else {
+                      // 사용자 SOL로 직접 전송
+                      result = await sendSPLToken(
+                        mn, mintAddress, splDecimals,
+                        toAddress, parseFloat(finalTokenAmount), currentRefId || undefined,
+                      );
+                    }
+
+                    if (currentRefId && currentPayload) {
+                      try {
+                        const { encryptTravelRuleData, saveTravelRulePackage } = await import('../services/travelRuleService');
+                        const pkg = await encryptTravelRuleData(currentPayload, currentRefId);
+                        await saveTravelRulePackage(pkg, result.txHash, 'SOL');
+                      } catch(e) { console.error('TR 저장 실패:', e); }
+                    }
+
+                    const explorerUrl = `https://solscan.io/tx/${result.txHash}`;
+                    setTxResult({ hash: result.txHash, chain: 'SOL', explorerUrl });
+                    toast.success(
+                      (t) => <span onClick={() => { window.open(explorerUrl, '_blank'); toast.dismiss(t.id); }} className="cursor-pointer">
+                        ✅ {selectedAsset.symbol} 전송 성공{feeNote}! 클릭해서 확인
+                      </span>,
+                      { duration: 10000, id: result.txHash }
+                    );
+                    onClose();
+                  } catch (e: any) { toast.error(`${selectedAsset.symbol} 전송 실패: ` + e.message); }
+                });
+                setSssSigningPurpose(`${finalTokenAmount} ${selectedAsset.symbol} → ${toAddress.slice(0,8)}...`);
                 setSssSigningOpen(true);
                 return;
               }
@@ -835,7 +903,11 @@ export function SendModal({ onClose }: { onClose: () => void }) {
                         : 'bg-slate-950 border-slate-800'
                     }`}>
                       <div className="flex justify-between text-[11px]">
-                        <span className="text-slate-500">수수료 (max 0.2%, 최소 {feeEstimate.fee} {feeEstimate.sym})</span>
+                        <span className="text-slate-500">
+                          {(feeEstimate as any).relay
+                            ? '⚡ 가스 대납 수수료 (0.2%, 최소 0.1)'
+                            : `수수료 (max 0.2%, 최소 2 ${feeEstimate.sym})`}
+                        </span>
                         <span className="text-amber-400 font-semibold">−{feeEstimate.fee} {feeEstimate.sym}</span>
                       </div>
                       <div className="flex justify-between text-xs font-bold border-t border-slate-800 pt-1.5 mt-0.5">

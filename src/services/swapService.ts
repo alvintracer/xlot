@@ -7,6 +7,7 @@ import { CHAIN_IDS } from '../constants/tokens';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface SwapQuote {
+  provider: '1INCH' | '0X';
   fromToken: { symbol: string; address: string; decimals: number };
   toToken:   { symbol: string; address: string; decimals: number };
   fromAmount: string;
@@ -59,6 +60,21 @@ export const EXPLORER: Record<number, string> = {
   [CHAIN_IDS.BASE]:     'https://basescan.org/tx/',
   [CHAIN_IDS.SEPOLIA]:  'https://sepolia.etherscan.io/tx/',
 };
+
+const ZEROX_KEY = import.meta.env.VITE_ZEROEX_API_KEY || '';
+
+function get0xBaseUrl(chainId: number) {
+    if (chainId === CHAIN_IDS.ETHEREUM) return 'https://api.0x.org/swap/v1/quote';
+    if (chainId === CHAIN_IDS.POLYGON) return 'https://polygon.api.0x.org/swap/v1/quote';
+    if (chainId === CHAIN_IDS.BASE) return 'https://base.api.0x.org/swap/v1/quote';
+    return 'https://api.0x.org/swap/v1/quote';
+}
+
+function zeroXHeaders() {
+    const h: Record<string, string> = { 'Accept': 'application/json' };
+    if (ZEROX_KEY) h['0x-api-key'] = ZEROX_KEY;
+    return h;
+}
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
 
@@ -130,17 +146,16 @@ function fromWei(amount: string, decimals: number): string {
 
 // ─── 1inch Quote ──────────────────────────────────────────────────────────────
 
-export async function getSwapQuote(
+export async function get1inchQuote(
   chainId: number,
   fromAddress: string,
   toAddress: string,
-  fromAmount: string,
+  amountWei: string,
   fromDecimals: number,
   toDecimals: number,
   walletAddress: string,
   slippagePct: number = 0.5,
 ): Promise<SwapQuote> {
-  const amountWei = toWei(fromAmount, fromDecimals);
   if (amountWei === '0') throw new Error('입력 금액이 올바르지 않습니다.');
 
   const params = new URLSearchParams({
@@ -171,6 +186,7 @@ export async function getSwapQuote(
   const estimatedGasUsd = (gasUsed * gasPriceGwei * 1e-9) * 3000;
 
   return {
+    provider: '1INCH',
     fromToken: { symbol: '', address: fromAddress, decimals: fromDecimals },
     toToken:   { symbol: '', address: toAddress,   decimals: toDecimals },
     fromAmount: amountWei,
@@ -181,6 +197,99 @@ export async function getSwapQuote(
     route,
     tx: tx ? { from: tx.from, to: tx.to, data: tx.data, value: tx.value, gas: tx.gas, gasPrice: tx.gasPrice } : undefined,
   };
+}
+
+export async function get0xQuote(
+  chainId: number,
+  fromAddress: string,
+  toAddress: string,
+  amountWei: string,
+  fromDecimals: number,
+  toDecimals: number,
+  walletAddress: string,
+  slippagePct: number = 0.5,
+): Promise<SwapQuote> {
+  const url = get0xBaseUrl(chainId);
+  const slipObj = slippagePct / 100;
+  const params = new URLSearchParams({
+      sellToken: fromAddress,
+      buyToken: toAddress,
+      sellAmount: amountWei,
+      takerAddress: walletAddress,
+      slippagePercentage: slipObj.toString(),
+  });
+
+  const res = await fetch(`${url}?${params}`, { headers: zeroXHeaders() });
+  if (!res.ok) {
+      throw new Error(`0x API 오류 (${res.status})`);
+  }
+  const data = await res.json();
+  
+  const toAmountWei = data.buyAmount || '0';
+  const gasUsed = parseInt(data.estimatedGas || '200000');
+  const gasPriceGwei = parseInt(data.gasPrice || '30000000000') / 1e9;
+  const estimatedGasUsd = (gasUsed * gasPriceGwei * 1e-9) * 3000;
+
+  const route: RouteProtocol[] = [];
+  if (data.sources) {
+      for (const src of data.sources) {
+          if (parseFloat(src.proportion) > 0) {
+              route.push({ name: src.name.toUpperCase(), part: Math.round(parseFloat(src.proportion) * 100) });
+          }
+      }
+  }
+  route.sort((a,b) => b.part - a.part);
+
+  return {
+      provider: '0X',
+      fromToken: { symbol: '', address: fromAddress, decimals: fromDecimals },
+      toToken:   { symbol: '', address: toAddress,   decimals: toDecimals },
+      fromAmount: amountWei,
+      toAmount:   toAmountWei,
+      toAmountDisplay: fromWei(toAmountWei, toDecimals),
+      estimatedGasUsd: parseFloat(estimatedGasUsd.toFixed(4)),
+      priceImpact: parseFloat(data.estimatedPriceImpact || '0'), 
+      route,
+      tx: { from: walletAddress, to: data.to, data: data.data, value: data.value, gas: data.estimatedGas || '200000', gasPrice: data.gasPrice || '30000000000' },
+  };
+}
+
+export async function getSwapQuote(
+  chainId: number,
+  fromAddress: string,
+  toAddress: string,
+  fromAmount: string,
+  fromDecimals: number,
+  toDecimals: number,
+  walletAddress: string,
+  slippagePct: number = 0.5,
+): Promise<SwapQuote> {
+  const amountWei = toWei(fromAmount, fromDecimals);
+  if (amountWei === '0') throw new Error('입력 금액이 올바르지 않습니다.');
+
+  const promises = [
+    get1inchQuote(chainId, fromAddress, toAddress, amountWei, fromDecimals, toDecimals, walletAddress, slippagePct)
+  ];
+
+  // 0x API 지원 체인이면 동시 호출
+  if ([CHAIN_IDS.ETHEREUM, CHAIN_IDS.POLYGON, CHAIN_IDS.BASE].includes(chainId)) {
+    promises.push(get0xQuote(chainId, fromAddress, toAddress, amountWei, fromDecimals, toDecimals, walletAddress, slippagePct));
+  }
+
+  const results = await Promise.allSettled(promises);
+  const validQuotes = results
+    .filter((r): r is PromiseFulfilledResult<SwapQuote> => r.status === 'fulfilled')
+    .map(r => r.value);
+
+  if (validQuotes.length === 0) {
+    const err = results[0].status === 'rejected' ? results[0].reason : new Error('견적 조회 실패');
+    throw err;
+  }
+
+  // toAmount(출력량)가 가장 큰 것을 선택
+  validQuotes.sort((a, b) => (BigInt(b.toAmount) > BigInt(a.toAmount) ? 1 : -1));
+
+  return validQuotes[0];
 }
 
 // ─── Execute Swap ─────────────────────────────────────────────────────────────

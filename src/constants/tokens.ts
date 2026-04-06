@@ -20,6 +20,11 @@ export const TOKEN_LIST: Token[] = [
     { symbol: 'ETH', name: 'Ethereum', address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', decimals: 18, chainId: CHAIN_IDS.ETHEREUM },
     { symbol: 'USDC', name: 'USD Coin', address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', decimals: 6, chainId: CHAIN_IDS.ETHEREUM },
     { symbol: 'USDT', name: 'Tether USD', address: '0xdac17f958d2ee523a2206206994597c13d831ec7', decimals: 6, chainId: CHAIN_IDS.ETHEREUM },
+    { symbol: 'DAI', name: 'Dai Stablecoin', address: '0x6b175474e89094c44da98b954eedeac495271d0f', decimals: 18, chainId: CHAIN_IDS.ETHEREUM },
+    { symbol: 'PYUSD', name: 'PayPal USD', address: '0x6c3ea9036406852006290770bedfcaba0e23a0e8', decimals: 6, chainId: CHAIN_IDS.ETHEREUM },
+    { symbol: 'XSGD', name: 'StraitsX SGD', address: '0x70e8de73ce538da2beed35d14187f6959a8eca96', decimals: 6, chainId: CHAIN_IDS.ETHEREUM },
+    { symbol: 'JPYC', name: 'JPY Coin', address: '0x431d5dff03120afa4bdf332c61a6e1766ef37bdb', decimals: 18, chainId: CHAIN_IDS.ETHEREUM },
+    { symbol: 'EURC', name: 'Euro Coin', address: '0x1abaea1f7c830bd89acc67ec4af516284b1bc33c', decimals: 6, chainId: CHAIN_IDS.ETHEREUM },
 
     // === Sepolia Testnet (테스트용) ===
     { symbol: 'ETH', name: 'Sepolia ETH', address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', decimals: 18, chainId: CHAIN_IDS.SEPOLIA },

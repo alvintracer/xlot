@@ -43,13 +43,12 @@ export function MobileLandingPage({ onContinue }: Props) {
          <div className="absolute bottom-[-10%] left-[-20%] w-[300px] h-[300px] bg-blue-600/20 rounded-full blur-[100px]"></div>
          
          <div className="relative z-10 space-y-6 text-center">
-            <div className="w-20 h-20 mx-auto rounded-3xl overflow-hidden p-1 bg-gradient-to-br from-cyan-400 to-blue-600 shadow-2xl mb-4">
-               <img src="/icon-192.png" className="w-full h-full object-cover rounded-[20px] bg-slate-900" alt="took" />
-            </div>
-            
-            <h1 className="text-5xl font-black tracking-tighter">
-               took
-            </h1>
+          <div className="flex justify-center mb-6">
+            <img src="/icon-192.png" className="w-24 h-24 object-contain" alt="took" />
+          </div>
+          <h1 className="text-5xl font-black tracking-tighter">
+            took
+          </h1>
             <p className="text-lg text-slate-300 font-medium leading-relaxed px-4">
               모든 지갑과 자산을 하나로 연결하는<br/>
               <span className="text-cyan-400 font-bold">오직 나만의 슈퍼 월렛</span>

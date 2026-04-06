@@ -81,9 +81,7 @@ export function LoginPage({ onUnlock }: { onUnlock: () => void }) {
         {/* ── 헤더 (공통) ── */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="w-20 h-20 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden flex items-center justify-center p-1">
-              <img src="/icon-192.png" alt="took Logo" className="w-full h-full object-contain rounded-xl" />
-            </div>
+            <img src="/icon-192.png" alt="took Logo" className="w-24 h-24 object-contain" />
           </div>
           <h1 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 mb-3 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)]">
             took
@@ -461,7 +459,7 @@ function LockedScreen({
       <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[130px] pointer-events-none animate-pulse" />
       <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[130px] pointer-events-none" />
 
-      {/* 로고 */}
+      {/* 인삿말 및 타이틀 */}
       <h1 className="text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 mb-2 drop-shadow-[0_0_15px_rgba(34,211,238,0.4)]">
         took
       </h1>
@@ -473,80 +471,81 @@ function LockedScreen({
         <span className="text-xs text-slate-400 font-mono">{shortAddr}</span>
       </div>
 
-      {/* 전원 버튼 */}
+      {/* 인피니티 해제 버튼 (로고 일체형) */}
       <div className="relative flex items-center justify-center mb-10 select-none">
-
-        {/* 외부 링 — 채우기 애니메이션 */}
-        <svg
-          className="absolute"
-          width="180" height="180"
-          viewBox="0 0 180 180"
-          style={{ transform: 'rotate(-90deg)' }}
-        >
-          {/* 배경 링 */}
-          <circle cx="90" cy="90" r="80"
-            fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
-          {/* 채우기 링 */}
-          <circle cx="90" cy="90" r="80"
-            fill="none"
-            stroke="url(#powerGradient)"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeDasharray={`${2 * Math.PI * 80}`}
-            strokeDashoffset={`${2 * Math.PI * 80 * (1 - fillPct / 100)}`}
-            style={{ transition: unlocked ? 'none' : 'stroke-dashoffset 0.05s linear' }}
-          />
-          <defs>
-            <linearGradient id="powerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#22d3ee" />
-              <stop offset="100%" stopColor="#6366f1" />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        {/* 두 번째 외부 pulse 링 */}
-        {(pressed || unlocked) && (
-          <div className={`absolute w-[170px] h-[170px] rounded-full border border-cyan-500/30 
-            ${unlocked ? 'animate-ping' : 'animate-pulse'}`} />
-        )}
-
-        {/* 버튼 본체 */}
+        
+        {/* 버튼 본체 (기존 테두리/배경 모두 제거, 순수 클릭 영역) */}
         <button
           onMouseDown={startHold}
           onMouseUp={cancelHold}
           onMouseLeave={cancelHold}
           onTouchStart={startHold}
           onTouchEnd={cancelHold}
-          className={`relative w-32 h-32 rounded-full flex items-center justify-center
-            transition-all duration-300 cursor-pointer outline-none
-            ${unlocked
-              ? 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-[0_0_60px_rgba(34,211,238,0.8)]'
-              : pressed
-              ? 'bg-gradient-to-br from-cyan-600/40 to-blue-700/40 shadow-[0_0_40px_rgba(34,211,238,0.4)] scale-95'
-              : 'bg-slate-900 border-2 border-slate-700 shadow-[0_0_20px_rgba(34,211,238,0.15)] hover:shadow-[0_0_30px_rgba(34,211,238,0.3)] hover:border-cyan-500/50'
-            }`}
-          style={{ WebkitTapHighlightColor: 'transparent' }}
+          className={`relative flex items-center justify-center group
+            transition-all duration-300 cursor-pointer outline-none bg-transparent border-none
+            ${pressed ? 'scale-95' : 'scale-100'}`}
+          style={{ WebkitTapHighlightColor: 'transparent', width: '220px', height: '120px' }}
         >
-          {/* 버튼 내부 링 */}
-          <div className={`absolute inset-3 rounded-full border transition-all duration-300
-            ${unlocked ? 'border-white/30' : 'border-slate-700/50'}`} />
+          {/* 중앙 요소 (아이콘 이미지) - 게이지가 바깥을 감싸도록 사이즈 축소 */}
+          <div className="absolute z-0 flex items-center justify-center">
+            {unlocked ? (
+              <div className="transition-all duration-500 scale-125 opacity-100">
+                <ShieldCheck size={56} className="text-cyan-300 drop-shadow-[0_0_20px_rgba(34,211,238,1)]" />
+              </div>
+            ) : (
+              <img src="/icon-192.png" alt="took" className="w-[100px] h-[100px] object-contain opacity-50 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-500" />
+            )}
+          </div>
 
-          {/* 아이콘 */}
-          {unlocked ? (
-            <ShieldCheck
-              size={40}
-              className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-              strokeWidth={1.5}
+          {/* 인피니티 SVG 캔버스 - 완벽한 두 원의 결합 */}
+          <svg width="160" height="80" viewBox="0 0 160 80" className="absolute z-10 pointer-events-none overflow-visible">
+            <defs>
+              <linearGradient id="infGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#22d3ee" />
+                <stop offset="100%" stopColor="#6366f1" />
+              </linearGradient>
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation={pressed ? 8 : 5} result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+
+            {/* 배경 궤도 (호버 시 발광 효과 적용) */}
+            <path d="M 80,40 A 40,40 0 0,1 160,40 A 40,40 0 0,1 80,40 A 40,40 0 0,0 0,40 A 40,40 0 0,0 80,40 Z"
+              fill="none" 
+              stroke="rgba(34,211,238,0.15)" 
+              strokeWidth="6" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+              className="transition-all duration-300 mix-blend-screen"
+              style={{
+                stroke: pressed ? 'rgba(34,211,238,0.3)' : '',
+                filter: (!unlocked && !pressed) ? 'drop-shadow(0 0 10px rgba(34,211,238,0.0))' : '',
+              }}
             />
-          ) : (
-            <Power
-              size={36}
-              className={`transition-all duration-300 ${
-                pressed ? 'text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]' : 'text-slate-500'
-              }`}
-              strokeWidth={1.5}
+
+            {/* CSS 호버 효과 (React Inline style과 css 클래스 충돌 방지를 위해 하단에 중복 오버레이용) */}
+            <path d="M 80,40 A 40,40 0 0,1 160,40 A 40,40 0 0,1 80,40 A 40,40 0 0,0 0,40 A 40,40 0 0,0 80,40 Z"
+              fill="none" stroke="transparent" strokeWidth="6"
+              className="group-hover:stroke-cyan-500/30 transition-all duration-300"
+              style={{ filter: 'drop-shadow(0 0 15px rgba(34,211,238,0.5))' }}
             />
-          )}
+
+            {/* 채워지는 궤도 */}
+            <path d="M 80,40 A 40,40 0 0,1 160,40 A 40,40 0 0,1 80,40 A 40,40 0 0,0 0,40 A 40,40 0 0,0 80,40 Z"
+              fill="none"
+              stroke={unlocked ? "#22d3ee" : "url(#infGradient)"}
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              pathLength="100"
+              strokeDasharray="100"
+              strokeDashoffset={unlocked ? 0 : 100 - fillPct}
+              style={{ transition: unlocked ? 'none' : 'stroke-dashoffset 0.05s linear' }}
+              filter={fillPct > 0 || unlocked ? 'url(#glow)' : ''}
+              className="mix-blend-screen"
+            />
+          </svg>
         </button>
       </div>
 
@@ -634,9 +633,9 @@ function ExtensionPopupLoginGate() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-6 px-6 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden">
-        <img src="/icon-192.png" alt="took" className="w-full h-full object-contain rounded-xl" />
-      </div>
+      {(phase === 'checking' || phase === 'reconnecting' || phase === 'waiting') && (
+        <img src="/icon-192.png" alt="took" className="w-20 h-20 object-contain" />
+      )}
 
       {(phase === 'checking' || phase === 'reconnecting') && (
         <>
@@ -663,8 +662,11 @@ function ExtensionPopupLoginGate() {
 
       {phase === 'no-account' && (
         <>
+          <div className="flex justify-center mb-4">
+            <img src="/icon-192.png" alt="took" className="w-20 h-20 object-contain" />
+          </div>
           <div className="space-y-2">
-            <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
+            <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400 mb-2">
               took Wallet
             </h1>
             <p className="text-slate-400 text-sm leading-relaxed">

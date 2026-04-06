@@ -784,10 +784,10 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
                            <h3 className={`font-bold text-sm truncate flex items-center gap-2 ${wallet.wallet_type === 'XLOT' ? 'text-cyan-400' : 'text-white'}`}>
                              {wallet.label}
                              {wallet.wallet_type === 'XLOT' && (
-                               <span className="px-1.5 py-0.5 rounded-md text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">MPC</span>
+                               <span className="px-1.5 py-1 leading-none inline-flex items-center rounded-full text-[9px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">MPC</span>
                              )}
                              {wallet.wallet_type === 'XLOT_SSS' && (
-                               <span className="px-1.5 py-0.5 rounded-md text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20">SAR</span>
+                               <span className="px-1.5 py-1 leading-none inline-flex items-center rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">SAR</span>
                              )}
                            </h3>
                            

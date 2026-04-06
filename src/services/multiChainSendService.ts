@@ -22,6 +22,11 @@ export interface SendResult {
   chain:  'SOL' | 'TRX' | 'BTC';
 }
 
+// ── SPL 토큰 상수 ─────────────────────────────────────────────
+const TOKEN_PROGRAM_ID_STR        = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const ASSOC_TOKEN_PROGRAM_ID_STR  = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bSe';
+const SYSTEM_PROGRAM_ID_STR       = '11111111111111111111111111111111';
+
 // ── SOL 전송 (with Memo) ─────────────────────────────────────
 export async function sendSOL(
   mnemonic:    string,
@@ -80,6 +85,158 @@ export async function sendSOL(
   conn.confirmTransaction(sig, 'confirmed').catch(() => {/* 무시 - 이미 제출 성공 */});
 
   return { txHash: sig, chain: 'SOL' };
+}
+
+// ── SPL 토큰 전송 (USDC / USDT 등) ──────────────────────────
+export async function sendSPLToken(
+  mnemonic:    string,
+  mintAddress: string,
+  decimals:    number,
+  toAddress:   string,
+  amount:      number,
+  referenceId?: string,
+): Promise<SendResult> {
+  const { Connection, PublicKey, TransactionMessage, VersionedTransaction, TransactionInstruction } =
+    await import('@solana/web3.js');
+
+  const privKey = await deriveSolPrivKey(mnemonic);
+  const keypair = await solKeypairFromPrivKey(privKey);
+
+  const conn          = new Connection('https://solana-rpc.publicnode.com', 'confirmed');
+  const mintPubkey    = new PublicKey(mintAddress);
+  const toPubkey      = new PublicKey(toAddress);
+  const tokenProgram  = new PublicKey(TOKEN_PROGRAM_ID_STR);
+  const assocProgram  = new PublicKey(ASSOC_TOKEN_PROGRAM_ID_STR);
+  const systemProgram = new PublicKey(SYSTEM_PROGRAM_ID_STR);
+
+  // ATA 주소 파생 헬퍼
+  const getATA = (owner: typeof keypair.publicKey) =>
+    PublicKey.findProgramAddressSync(
+      [owner.toBuffer(), tokenProgram.toBuffer(), mintPubkey.toBuffer()],
+      assocProgram,
+    )[0];
+
+  const sourceATA = getATA(keypair.publicKey);
+  const destATA   = getATA(toPubkey);
+
+  // 수신자 ATA 존재 여부 확인 (없으면 idempotent create)
+  const destAccInfo = await conn.getAccountInfo(destATA);
+  const instructions: InstanceType<typeof TransactionInstruction>[] = [];
+
+  if (!destAccInfo) {
+    // ATA 생성 (idempotent = instruction index 1)
+    instructions.push(new TransactionInstruction({
+      programId: assocProgram,
+      keys: [
+        { pubkey: keypair.publicKey, isSigner: true,  isWritable: true  }, // funder
+        { pubkey: destATA,           isSigner: false, isWritable: true  }, // ata
+        { pubkey: toPubkey,          isSigner: false, isWritable: false }, // owner
+        { pubkey: mintPubkey,        isSigner: false, isWritable: false }, // mint
+        { pubkey: systemProgram,     isSigner: false, isWritable: false },
+        { pubkey: tokenProgram,      isSigner: false, isWritable: false },
+      ],
+      data: Buffer.from([1]), // create_idempotent
+    }));
+  }
+
+  // TransferChecked (instruction #12)
+  const rawAmount = BigInt(Math.round(amount * Math.pow(10, decimals)));
+  const transferData = Buffer.alloc(10);
+  transferData.writeUInt8(12, 0);                              // discriminator
+  transferData.writeBigUInt64LE(rawAmount, 1);                 // amount u64
+  transferData.writeUInt8(decimals, 9);                        // decimals u8
+
+  instructions.push(new TransactionInstruction({
+    programId: tokenProgram,
+    keys: [
+      { pubkey: sourceATA,          isSigner: false, isWritable: true  }, // source
+      { pubkey: mintPubkey,         isSigner: false, isWritable: false }, // mint
+      { pubkey: destATA,            isSigner: false, isWritable: true  }, // destination
+      { pubkey: keypair.publicKey,  isSigner: true,  isWritable: false }, // authority
+    ],
+    data: transferData,
+  }));
+
+  // Travel Rule Memo
+  if (referenceId) {
+    const { createMemoInstruction } = await importMemoProgram();
+    instructions.push(createMemoInstruction(`TR:${referenceId}`, [keypair.publicKey]));
+  }
+
+  const { blockhash } = await conn.getLatestBlockhash();
+  const msg = new TransactionMessage({
+    payerKey:        keypair.publicKey,
+    recentBlockhash: blockhash,
+    instructions,
+  }).compileToV0Message();
+
+  const tx = new VersionedTransaction(msg);
+  tx.sign([keypair]);
+
+  const sig = await conn.sendRawTransaction(tx.serialize(), {
+    skipPreflight: false,
+    preflightCommitment: 'confirmed',
+  });
+  conn.confirmTransaction(sig, 'confirmed').catch(() => {});
+
+  return { txHash: sig, chain: 'SOL' };
+}
+
+// ── SPL 토큰 전송 — 릴레이어 대납 버전 (SOL 0인 경우) ────────
+// 흐름:
+//   1. Edge function BUILD → 릴레이어 fee payer 포함 미서명 tx 반환
+//   2. 사용자 keypair로 부분 서명
+//   3. Edge function SUBMIT → 릴레이어 cosign + 브로드캐스트
+//   수수료: 0.2% (최소 0.1 USDC/USDT) 원자적으로 fee vault로 전송
+export async function sendSPLTokenRelayed(
+  mnemonic:    string,
+  mintAddress: string,
+  decimals:    number,
+  toAddress:   string,
+  amount:      number,
+): Promise<SendResult & { feeAmount: number; sendAmount: number }> {
+  const { supabase } = await import('../lib/supabase');
+  const { VersionedTransaction } = await import('@solana/web3.js');
+
+  // 1. 사용자 keypair 파생
+  const privKey = await deriveSolPrivKey(mnemonic);
+  const keypair = await solKeypairFromPrivKey(privKey);
+
+  // 2. Edge function에 미서명 트랜잭션 요청
+  const { data: buildData, error: buildError } = await supabase.functions.invoke('sol-spl-relay', {
+    body: {
+      action:      'BUILD',
+      userAddress: keypair.publicKey.toBase58(),
+      mintAddress,
+      toAddress,
+      amount,
+      decimals,
+    },
+  });
+  if (buildError || !buildData?.success) {
+    throw new Error(buildData?.error || buildError?.message || 'Relay BUILD 실패');
+  }
+
+  // 3. 사용자 서명 (fee payer = 릴레이어이므로 사용자는 authority만 서명)
+  const txBytes = Buffer.from(buildData.serializedTx, 'base64');
+  const tx      = VersionedTransaction.deserialize(txBytes);
+  tx.sign([keypair]);
+  const signedB64 = Buffer.from(tx.serialize()).toString('base64');
+
+  // 4. 릴레이어 cosign + 브로드캐스트
+  const { data: submitData, error: submitError } = await supabase.functions.invoke('sol-spl-relay', {
+    body: { action: 'SUBMIT', signedTx: signedB64 },
+  });
+  if (submitError || !submitData?.success) {
+    throw new Error(submitData?.error || submitError?.message || 'Relay SUBMIT 실패');
+  }
+
+  return {
+    txHash:     submitData.txHash,
+    chain:      'SOL',
+    feeAmount:  buildData.feeAmount,
+    sendAmount: buildData.sendAmount,
+  };
 }
 
 // Memo Program — SPL Memo Program ID로 직접 구현 (@solana/spl-memo 불필요)

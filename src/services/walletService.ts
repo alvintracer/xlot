@@ -14,6 +14,65 @@ const arbitrum = defineChain(42161);
 
 // Legacy Imports (Solana, BTC, Tron)
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+
+// ── Solana SPL 토큰 목록 ─────────────────────────────────────
+const SPL_TOKENS = [
+  { symbol: 'USDC', name: 'USD Coin',   mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6, priceKey: 'usdc' },
+  { symbol: 'USDT', name: 'Tether USD', mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', decimals: 6, priceKey: 'usdt' },
+] as const;
+
+const SOL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+
+async function fetchSPLTokenBalances(solAddress: string, prices: any): Promise<WalletAsset[]> {
+  try {
+    const res = await fetch('https://solana-rpc.publicnode.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1,
+        method: 'getTokenAccountsByOwner',
+        params: [
+          solAddress,
+          { programId: SOL_TOKEN_PROGRAM },
+          { encoding: 'jsonParsed' },
+        ],
+      }),
+    });
+    const json = await res.json();
+    const accounts: any[] = json?.result?.value ?? [];
+    const assets: WalletAsset[] = [];
+
+    for (const acc of accounts) {
+      const info = acc.account?.data?.parsed?.info;
+      if (!info) continue;
+      const mintAddr: string = info.mint;
+      const tokenDef = SPL_TOKENS.find(t => t.mint === mintAddr);
+      if (!tokenDef) continue;
+
+      const uiAmount: number = info.tokenAmount?.uiAmount ?? 0;
+      if (uiAmount <= 0) continue;
+
+      const tokenPrices = prices?.tokens as any;
+      const price  = tokenPrices?.[tokenDef.priceKey]?.usd   ?? 1;
+      const change = tokenPrices?.[tokenDef.priceKey]?.change ?? 0;
+
+      assets.push({
+        symbol:       tokenDef.symbol,
+        name:         tokenDef.name,
+        balance:      uiAmount,
+        price,
+        value:        uiAmount * price,
+        change,
+        network:      'Solana',
+        isNative:     false,
+        tokenAddress: tokenDef.mint,
+      });
+    }
+    return assets;
+  } catch {
+    return [];
+  }
+}
 import * as TronWebPkg from 'tronweb';
 import { getDeviceId } from "../utils/deviceService";
 import { fetchCryptoPrices } from "./priceService";
@@ -327,6 +386,9 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                             isNative: true
                         });
                     }
+                    // SPL 토큰 (USDC, USDT)
+                    const splAssets = await fetchSPLTokenBalances(wallet.addresses.sol, prices);
+                    wallet.assets.push(...splAssets);
                 } catch (e) { wallet.balances.sol = 0; }
             }
 

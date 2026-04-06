@@ -42,6 +42,11 @@ const MARKET_ASSETS: MarketAsset[] = [
   { symbol: 'POL',  name: 'Polygon',  color: 'violet', tokenAddress: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', decimals: 18, chainId: 137 },
   { symbol: 'USDC', name: 'USD Coin', color: 'blue',   tokenAddress: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', decimals: 6,  chainId: 1 },
   { symbol: 'USDT', name: 'Tether',   color: 'green',  tokenAddress: '0xdac17f958d2ee523a2206206994597c13d831ec7', decimals: 6,  chainId: 1 },
+  { symbol: 'DAI',  name: 'Dai Stablecoin', color: 'amber', tokenAddress: '0x6b175474e89094c44da98b954eedeac495271d0f', decimals: 18, chainId: 1 },
+  { symbol: 'PYUSD', name: 'PayPal USD', color: 'indigo', tokenAddress: '0x6c3ea9036406852006290770bedfcaba0e23a0e8', decimals: 6, chainId: 1 },
+  { symbol: 'XSGD', name: 'StraitsX SGD', color: 'emerald', tokenAddress: '0x70e8de73ce538da2beed35d14187f6959a8eca96', decimals: 6, chainId: 1 },
+  { symbol: 'JPYC', name: 'JPY Coin', color: 'rose', tokenAddress: '0x431d5dff03120afa4bdf332c61a6e1766ef37bdb', decimals: 18, chainId: 1 },
+  { symbol: 'EURC', name: 'Euro Coin', color: 'cyan', tokenAddress: '0x1abaea1f7c830bd89acc67ec4af516284b1bc33c', decimals: 6, chainId: 1 },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -75,6 +80,11 @@ function getAssetPrice(symbol: string, prices: PriceData | null): number {
   if (s === 'pol' || s === 'matic') return t.pol.usd;
   if (s === 'usdc') return t.usdc.usd;
   if (s === 'usdt') return t.usdt.usd;
+  if (s === 'dai')  return t.dai.usd;
+  if (s === 'pyusd') return t.pyusd.usd;
+  if (s === 'xsgd') return t.xsgd.usd;
+  if (s === 'jpyc') return t.jpyc.usd;
+  if (s === 'eurc') return t.eurc.usd;
   return 0;
 }
 
@@ -86,6 +96,11 @@ function getAssetChange(symbol: string, prices: PriceData | null): number {
   if (s === 'btc')  return t.btc.change;
   if (s === 'sol')  return t.sol.change;
   if (s === 'pol' || s === 'matic') return t.pol.change;
+  if (s === 'dai')  return t.dai.change;
+  if (s === 'pyusd') return t.pyusd.change;
+  if (s === 'xsgd') return t.xsgd.change;
+  if (s === 'jpyc') return t.jpyc.change;
+  if (s === 'eurc') return t.eurc.change;
   return 0;
 }
 
@@ -645,7 +660,7 @@ function SwapPanel({ selectedAsset, prices, wallets, selectedWallet, onWalletCha
             <div className="px-3 py-2.5 border-b border-slate-800">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Activity size={10} className="text-slate-500" />
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">라우트</span>
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">라우트 ({quote.provider})</span>
               </div>
               <div className="flex flex-wrap gap-1">
                 {quote.route.slice(0, 4).map((r: RouteProtocol, i: number) => <RouteBadge key={i} name={r.name} part={r.part} />)}
