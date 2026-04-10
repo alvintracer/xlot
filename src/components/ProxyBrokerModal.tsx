@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import type { RWAPriceMap } from '../services/rwaService';
 import { VAULT_CONTRACT_ADDRESS, USDC_ETH_ADDRESS, USDC_DECIMALS, VAULT_ABI } from '../constants/vaultContract';
 
-const RELAY_URL = 'http://49.247.139.241:3000';
+const RELAY_URL = import.meta.env.VITE_RELAY_URL || '/api/relay';
 
 // Minimal USDC ABI for balance + permit
 const USDC_ABI = [

@@ -14,7 +14,7 @@ import type { MarketDiscoveryProvider, MetadataProvider, DiscoveredMarket, Metad
 import type { RWAInstrument } from '../../../types/rwaInstrument';
 
 const BITGET_API = 'https://api.bitget.com/api/v2/mix';
-const RELAY_URL = 'http://49.247.139.241:3000';
+const RELAY_URL = import.meta.env.VITE_RELAY_URL || '/api/relay';
 
 /** Proxy fetch through relay server to bypass CORS */
 async function proxyFetch(url: string): Promise<Response> {

@@ -2,11 +2,11 @@
 import { supabase } from "../lib/supabase";
 
 // 중계 서버 URL (대표님 서버)
-const RELAY_URL = "http://49.247.139.241:3000";
+const RELAY_URL = import.meta.env.VITE_RELAY_URL || "/api/relay";
 
 // ✨ [수정] 출금 가능 정보 조회 (GET -> POST로 변경)
 export async function getUpbitChance(accessKey: string, secretKey: string, currency: string, netType?: string) {
-    const RELAY_URL = "http://49.247.139.241:3000"; // 대표님 서버 주소
+
 
     // 중요: method를 'POST'로 설정해야 합니다.
     const res = await fetch(`${RELAY_URL}/upbit/withdraws/chance`, {
@@ -34,7 +34,7 @@ export async function withdrawUpbitCoin(
     address: string,
     secondaryAddress?: string 
 ) {
-    const RELAY_URL = "http://49.247.139.241:3000";
+
 
     // ✨ 전송할 데이터 객체 미리 만들기
     const payload: any = {
@@ -111,7 +111,7 @@ export async function fetchUpbitActivity(accessKey: string, secretKey: string) {
 
 // upbitService.ts
 export async function fetchUpbitDepositAddresses(accessKey: string, secretKey: string) {
-  const res = await fetch(`http://49.247.139.241:3000/upbit/deposits/addresses`, {
+  const res = await fetch(`${RELAY_URL}/upbit/deposits/addresses`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ accessKey, secretKey }),
@@ -141,7 +141,7 @@ export async function generateUpbitAddress(
 
 // 3. 업비트 전체 네트워크 상태 조회
 export async function fetchUpbitStatus(accessKey: string, secretKey: string) {
-    const RELAY_URL = "http://49.247.139.241:3000";
+
     const res = await fetch(`${RELAY_URL}/upbit/status?accessKey=${accessKey}&secretKey=${secretKey}`);
     return await res.json();
 }

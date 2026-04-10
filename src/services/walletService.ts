@@ -263,7 +263,7 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
             if (['UPBIT'].includes(wallet.wallet_type)) {
                 if (wallet.api_access_key && wallet.api_secret_key) {
                     try {
-                        const RELAY_URL = "http://49.247.139.241:3000";
+                        const RELAY_URL = import.meta.env.VITE_RELAY_URL || "/api/relay";
                         const response = await fetch(`${RELAY_URL}/upbit/accounts`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },

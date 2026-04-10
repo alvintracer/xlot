@@ -34,6 +34,11 @@ export default defineConfig(async () => {
         'Cross-Origin-Embedder-Policy': 'unsafe-none',
       },
       proxy: {
+        '/api/relay': {
+          target: 'http://49.247.139.241:3000',
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/api\/relay/, ''),
+        },
         '/upbit-api': {
           target: 'https://api.upbit.com',
           changeOrigin: true,

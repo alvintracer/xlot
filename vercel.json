@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/relay/:match*",
+      "destination": "http://49.247.139.241:3000/:match*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
