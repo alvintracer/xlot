@@ -50,6 +50,57 @@ export type ExecutionAvailability =
   | 'tracked_only'        // Market data tracked, no execution
   | 'platform_only';      // Execute only on provider's own platform
 
+// ─── Venue Category (Platform / Venue axis) ─────────────────
+export type VenueCategory =
+  | 'dex_spot'         // Onchain spot (PAXG, USDY, XAUt)
+  | 'onchain_perps'    // Onchain perpetual DEX (Hyperliquid, edgeX, Injective)
+  | 'cex_perps'        // CEX perpetual (OKX, Bitget)
+  | 'platform_access'; // Platform-issued / tokenized access (BUIDL, Kraken, RealT)
+
+export interface VenueCategoryMeta {
+  id: VenueCategory;
+  label: string;
+  labelKr: string;
+  icon: string;
+  color: { bg: string; border: string; text: string };
+  description: string;
+}
+
+export const VENUE_CATEGORY_META: Record<VenueCategory, VenueCategoryMeta> = {
+  dex_spot: {
+    id: 'dex_spot',
+    label: 'DEX Spot',
+    labelKr: 'DEX 현물',
+    icon: '💎',
+    color: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400' },
+    description: 'Onchain spot tokens with direct asset backing or issuer redemption',
+  },
+  onchain_perps: {
+    id: 'onchain_perps',
+    label: 'Onchain Perps',
+    labelKr: '온체인 선물',
+    icon: '⚡',
+    color: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400' },
+    description: 'Onchain perpetual futures — price exposure without asset ownership',
+  },
+  cex_perps: {
+    id: 'cex_perps',
+    label: 'CEX Perps',
+    labelKr: 'CEX 선물',
+    icon: '🏢',
+    color: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400' },
+    description: 'Centralized exchange perpetual contracts — tracked or deeplinked',
+  },
+  platform_access: {
+    id: 'platform_access',
+    label: 'Platform',
+    labelKr: '플랫폼',
+    icon: '🔗',
+    color: { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400' },
+    description: 'Platform-issued tokens or access — execution via provider only',
+  },
+};
+
 // ─── NAV / Reference Support ─────────────────────────────────
 export type NavSupport = 'official' | 'estimated' | 'none';
 export type ReferenceValueType = 'nav' | 'oracle_reference' | 'platform_price' | 'market_price';
@@ -131,6 +182,9 @@ export interface RWAInstrument {
   permissionModel: PermissionModel;
   executionAvailability: ExecutionAvailability;
 
+  // Venue classification
+  venueCategory: VenueCategory;
+
   // Reference value
   navSupport: NavSupport;
   referenceValueType: ReferenceValueType;
@@ -153,7 +207,7 @@ export interface RWAInstrument {
   // Display
   description: string;
   tags: string[];
-  icon: string;
+  imageUrl?: string;
 
   // Metadata
   coingeckoId: string | null;

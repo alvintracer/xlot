@@ -56,35 +56,35 @@ export function HistoricalPriceChart({
       : `$${p.toFixed(4)}`;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-black text-white">가격 비교 트렌드</span>
-          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">최근 30일</span>
+    <div className="h-full flex flex-col w-full min-w-0">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Price Trend</span>
+          <span className="text-[9px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">30D</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm bg-slate-500" />
-            <span className="text-xs text-slate-400 font-bold">NAV (기준가)</span>
+            <div className="w-1.5 h-1.5 bg-slate-500 rounded-sm" />
+            <span className="text-[9px] font-bold text-slate-400">NAV</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm bg-cyan-400" />
-            <span className="text-xs text-slate-300 font-bold">DEX (시장가)</span>
+            <div className="w-1.5 h-1.5 bg-cyan-400 rounded-sm" />
+            <span className="text-[9px] font-bold text-cyan-500">DEX</span>
           </div>
         </div>
       </div>
 
-      <div className="w-full h-[180px] relative">
+      <div className="w-full flex-1 min-h-[140px] relative mt-auto">
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-xs font-bold text-slate-500 animate-pulse">데이터 로딩 중...</span>
+            <span className="text-[10px] font-bold text-slate-500 animate-pulse">Loading data...</span>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+            <AreaChart data={data} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="navGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.2}/>
+                  <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.15}/>
                   <stop offset="95%" stopColor="#94a3b8" stopOpacity={0}/>
                 </linearGradient>
                 <linearGradient id="dexGradient" x1="0" y1="0" x2="0" y2="1">
@@ -94,8 +94,8 @@ export function HistoricalPriceChart({
               </defs>
               <XAxis 
                 dataKey="dateStr" 
-                tick={{ fontSize: 10, fill: '#64748b', fontWeight: 'bold' }} 
-                tickMargin={10}
+                tick={{ fontSize: 9, fill: '#475569', fontWeight: 'bold' }} 
+                tickMargin={8}
                 axisLine={false} 
                 tickLine={false}
                 minTickGap={20}
@@ -103,22 +103,23 @@ export function HistoricalPriceChart({
               <YAxis 
                 domain={yDomain} 
                 tickFormatter={fmtPrice} 
-                tick={{ fontSize: 10, fill: '#64748b' }} 
+                tick={{ fontSize: 9, fill: '#475569', fontWeight: '600' }} 
                 axisLine={false} 
                 tickLine={false}
+                width={50}
               />
               <Tooltip
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {
                     return (
-                      <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl shadow-xl space-y-2">
-                        <p className="text-xs text-slate-400 font-bold">{label}</p>
+                      <div className="bg-[#0f172a]/95 backdrop-blur-md border border-slate-700/50 p-2.5 rounded-xl shadow-2xl space-y-1.5">
+                        <p className="text-[9px] text-slate-400 font-bold">{label}</p>
                         {payload.map((entry, idx) => (
-                          <div key={idx} className="flex justify-between gap-4">
-                            <span className="text-sm font-bold" style={{ color: entry.color }}>
+                          <div key={idx} className="flex justify-between items-center gap-4">
+                            <span className="text-[10px] font-black" style={{ color: entry.color }}>
                               {entry.name === 'navPrice' ? 'NAV' : 'DEX'}
                             </span>
-                            <span className="text-sm font-mono text-white">
+                            <span className="text-[11px] font-mono font-bold text-white">
                               {fmtPrice(entry.value as number)}
                             </span>
                           </div>
@@ -133,8 +134,8 @@ export function HistoricalPriceChart({
                 type="monotone" 
                 dataKey="navPrice" 
                 name="navPrice"
-                stroke="#94a3b8" 
-                strokeWidth={2}
+                stroke="#64748b" 
+                strokeWidth={1.5}
                 fillOpacity={1} 
                 fill="url(#navGradient)" 
               />
@@ -143,7 +144,7 @@ export function HistoricalPriceChart({
                 dataKey="dexPrice" 
                 name="dexPrice"
                 stroke="#22d3ee" 
-                strokeWidth={2}
+                strokeWidth={1.5}
                 fillOpacity={1} 
                 fill="url(#dexGradient)" 
               />
@@ -196,126 +197,62 @@ export function SpreadGauge({ navData }: { navData: NAVData }) {
   const needleColor = isDiscount ? '#10b981' : isPremium ? '#f43f5e' : '#94a3b8';
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-black text-white">프리미엄 / 디스카운트</span>
-        <span className={`text-sm font-black bg-slate-950 px-3 py-1 rounded-lg border border-slate-800 ${isDiscount ? 'text-emerald-400' : isPremium ? 'text-red-400' : 'text-slate-400'}`}>
-          {spread > 0 ? '+' : ''}{spread.toFixed(3)}%
+    <div className="flex flex-col h-full w-full min-w-0">
+      <div className="flex items-center justify-between mb-0 px-1">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">Prem/Disc</span>
+        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded shrink-0 ${isDiscount ? 'text-emerald-400 bg-emerald-500/10' : isPremium ? 'text-red-400 bg-red-500/10' : 'text-slate-400 bg-slate-800'}`}>
+          {spread > 0 ? '+' : ''}{spread.toFixed(2)}%
         </span>
       </div>
 
-      <svg viewBox="0 0 300 130" className="w-full mt-2">
-        {/* 배경 반원 트랙 — 3구간 (디스카운트/중립/프리미엄) */}
-        {/* 디스카운트 구간 (0~90도) */}
-        <path d={arcPath(0, 90, R)} fill="none"
-          stroke="#064e3b" strokeWidth="14" strokeLinecap="butt" />
-        {/* 중립 구간 (85~95도) */}
-        <path d={arcPath(85, 95, R)} fill="none"
-          stroke="#1e293b" strokeWidth="16" strokeLinecap="butt" />
-        {/* 프리미엄 구간 (90~180도) */}
-        <path d={arcPath(90, 180, R)} fill="none"
-          stroke="#4c0519" strokeWidth="14" strokeLinecap="butt" />
+      <div className="flex-1 flex items-end justify-center px-2 pb-0 mt-[-5px]">
+        <svg viewBox="0 15 300 115" className="w-[110%] max-w-[200px] sm:max-w-full drop-shadow-xl overflow-visible">
+          {/* 배경 반원 트랙 */}
+          <path d={arcPath(0, 90, R)} fill="none" stroke="#064e3b" strokeWidth="12" strokeLinecap="butt" />
+          <path d={arcPath(85, 95, R)} fill="none" stroke="#0f172a" strokeWidth="14" strokeLinecap="butt" />
+          <path d={arcPath(90, 180, R)} fill="none" stroke="#4c0519" strokeWidth="12" strokeLinecap="butt" />
 
-        {/* 채워진 게이지 (0% 기준에서 현재까지) */}
-        {isDiscount && (
-          <path d={arcPath(pointerDeg, 90, R)} fill="none"
-            stroke="#10b981" strokeWidth="14" strokeLinecap="round" opacity="0.8" />
-        )}
-        {isPremium && (
-          <path d={arcPath(90, pointerDeg, R)} fill="none"
-            stroke="#f43f5e" strokeWidth="14" strokeLinecap="round" opacity="0.8" />
-        )}
-        {isNeutral && (
-          <path d={arcPath(88, 92, R)} fill="none"
-            stroke="#94a3b8" strokeWidth="14" strokeLinecap="round" />
-        )}
+          {/* 채워진 게이지 */}
+          {isDiscount && (
+            <path d={arcPath(pointerDeg, 90, R)} fill="none" stroke="#10b981" strokeWidth="12" strokeLinecap="round" opacity="0.9" />
+          )}
+          {isPremium && (
+            <path d={arcPath(90, pointerDeg, R)} fill="none" stroke="#f43f5e" strokeWidth="12" strokeLinecap="round" opacity="0.9" />
+          )}
+          {isNeutral && (
+            <path d={arcPath(89, 91, R)} fill="none" stroke="#94a3b8" strokeWidth="12" strokeLinecap="round" />
+          )}
 
-        {/* 눈금 마커 */}
-        {[-2, -1, 0, 1, 2].map(v => {
-          const deg = 90 + (v / MAX_RANGE) * 90;
-          const r1  = (d: number) => (d * Math.PI) / 180;
-          const mx1 = CX + (R - 18) * Math.cos(r1(deg));
-          const my1 = CY - (R - 18) * Math.sin(Math.PI - r1(deg));
-          const mx2 = CX + (R + 2)  * Math.cos(r1(deg));
-          const my2 = CY - (R + 2)  * Math.sin(Math.PI - r1(deg));
-          const tx  = CX + (R - 26) * Math.cos(r1(deg));
-          const ty  = CY - (R - 26) * Math.sin(Math.PI - r1(deg));
-          return (
-            <g key={v}>
-              <line x1={mx1} y1={my1} x2={mx2} y2={my2}
-                stroke="#334155" strokeWidth={v === 0 ? 1.5 : 0.8} />
-              <text x={tx} y={ty + 1.5} fill="#475569" fontSize="5.5"
-                textAnchor="middle" dominantBaseline="middle">
-                {v > 0 ? `+${v}%` : `${v}%`}
+          {/* 눈금 마커 간소화 (0%만) */}
+          {[-2, 0, 2].map(v => {
+            const deg = 90 + (v / MAX_RANGE) * 90;
+            const r1  = (d: number) => (d * Math.PI) / 180;
+            const tx  = CX + (R - 20) * Math.cos(r1(deg));
+            const ty  = CY - (R - 20) * Math.sin(Math.PI - r1(deg));
+            return (
+              <text key={v} x={tx} y={ty} fill="#475569" fontSize="7" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
+                {v > 0 ? `+${v}%` : v === 0 ? '0' : `${v}%`}
               </text>
-            </g>
-          );
-        })}
+            );
+          })}
 
-        {/* 포인터 바늘 */}
-        <line
-          x1={CX} y1={CY}
-          x2={px} y2={py}
-          stroke={needleColor} strokeWidth="2.5" strokeLinecap="round"
-        />
-        {/* 바늘 중심 원 */}
-        <circle cx={CX} cy={CY} r="5" fill="#0f172a" stroke={needleColor} strokeWidth="2" />
+          {/* 포인터 바늘 */}
+          <line x1={CX} y1={CY} x2={px} y2={py} stroke={needleColor} strokeWidth="3" strokeLinecap="round" />
+          <circle cx={CX} cy={CY} r="6" fill="#0f172a" stroke={needleColor} strokeWidth="2.5" />
 
-        {/* 중앙 수치 표시 */}
-        <text x={CX} y={CY + 20} fill={needleColor} fontSize="11"
-          fontWeight="bold" textAnchor="middle">
-          {spread > 0 ? '+' : ''}{spread.toFixed(3)}%
-        </text>
-        <text x={CX} y={CY + 30} fill="#64748b" fontSize="5.5" textAnchor="middle">
-          NAV 대비 DEX 가격
-        </text>
+          {/* 중앙 하단 수치 표시 — 텍스트 크기 증가, 줄임 */}
+          <text x={CX} y={CY + 18} fill={needleColor} fontSize="14" fontWeight="900" textAnchor="middle">
+            {spread > 0 ? '+' : ''}{spread.toFixed(2)}%
+          </text>
 
-        {/* 좌우 레이블 */}
-        <text x="18" y={CY + 8} fill="#10b981" fontSize="5.5" fontWeight="bold" textAnchor="middle">
-          디스카운트
-        </text>
-        <text x="18" y={CY + 15} fill="#10b981" fontSize="5" textAnchor="middle">
-          (저렴)
-        </text>
-        <text x="282" y={CY + 8} fill="#f43f5e" fontSize="5.5" fontWeight="bold" textAnchor="middle">
-          프리미엄
-        </text>
-        <text x="282" y={CY + 15} fill="#f43f5e" fontSize="5" textAnchor="middle">
-          (비쌈)
-        </text>
+          {/* 좌우 레이블 */}
+          <text x="30" y={CY + 15} fill="#10b981" fontSize="6.5" fontWeight="black" textAnchor="middle">DISCOUNT</text>
+          <text x="270" y={CY + 15} fill="#f43f5e" fontSize="6.5" fontWeight="black" textAnchor="middle">PREMIUM</text>
 
-        {/* 상태 뱃지 */}
-        {isDiscount && (
-          <g>
-            <rect x="110" y="75" width="80" height="16" rx="8"
-              fill="#064e3b" stroke="#10b981" strokeWidth="0.8" />
-            <text x="150" y="85.5" fill="#10b981" fontSize="6"
-              fontWeight="bold" textAnchor="middle">
-              DEX 할인 — 지금이 유리
-            </text>
-          </g>
-        )}
-        {isPremium && (
-          <g>
-            <rect x="105" y="75" width="90" height="16" rx="8"
-              fill="#4c0519" stroke="#f43f5e" strokeWidth="0.8" />
-            <text x="150" y="85.5" fill="#f43f5e" fontSize="6"
-              fontWeight="bold" textAnchor="middle">
-              프리미엄 — NAV 대비 비쌈
-            </text>
-          </g>
-        )}
-        {isNeutral && (
-          <g>
-            <rect x="110" y="75" width="80" height="16" rx="8"
-              fill="#1e293b" stroke="#475569" strokeWidth="0.8" />
-            <text x="150" y="85.5" fill="#94a3b8" fontSize="6"
-              fontWeight="bold" textAnchor="middle">
-              NAV 동일 — 적정 가격
-            </text>
-          </g>
-        )}
-      </svg>
+          {/* 상태 배지 제거 (denser) */}
+        </svg>
+      </div>
+
     </div>
   );
 }
@@ -402,79 +339,41 @@ export function LiquidityDonut({
     : `$${v.toFixed(0)}`;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-black text-white">유동성 분포</span>
-        <span className="text-xs text-slate-500">DEX별 비중</span>
+    <div className="h-full flex flex-col w-full min-w-0">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">Liquidity</span>
+        <span className="text-[9px] text-slate-500 font-bold bg-slate-800 px-1.5 py-0.5 rounded">DEX split</span>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 px-2">
+      <div className="flex items-center gap-3 flex-1 px-1">
         {/* 도넛 */}
-        <div className="flex-shrink-0 w-44 sm:w-40 xl:w-48 2xl:w-56 mx-auto sm:mx-0">
-          <svg viewBox="0 0 160 160" className="w-full h-auto drop-shadow-xl">
-          {slices.map((sl, i) => (
-            <g key={i}>
-              <path d={sl.path} fill={sl.color} opacity="0.85"
-                stroke="#0f172a" strokeWidth="1.5" />
-              {/* 비중 크면 레이블 표시 */}
-              {sl.angle > 25 && (
-                <text x={sl.lx} y={sl.ly}
-                  fill="#e2e8f0" fontSize="5.5" fontWeight="bold"
-                  textAnchor="middle" dominantBaseline="middle">
-                  {Math.round(sl.value)}%
-                </text>
-              )}
-            </g>
-          ))}
-
-          {/* 도넛 중앙 — TVL */}
-          <circle cx={CX} cy={CY} r={INNER_R - 2} fill="#0f172a" />
-          <text x={CX} y={CY - 8} fill="#e2e8f0" fontSize="8"
-            fontWeight="bold" textAnchor="middle">
-            {totalLiq > 0 ? fmtLiq(totalLiq) : '—'}
-          </text>
-          <text x={CX} y={CY + 2} fill="#64748b" fontSize="5"
-            textAnchor="middle">TVL</text>
-          <text x={CX} y={CY + 11} fill="#22d3ee" fontSize="6.5"
-            fontWeight="bold" textAnchor="middle">
-            {vol24h > 0 ? fmtLiq(vol24h) : ''}
-          </text>
-          {vol24h > 0 && (
-            <text x={CX} y={CY + 19} fill="#64748b" fontSize="4.5"
-              textAnchor="middle">24h Vol</text>
-          )}
-        </svg>
+        <div className="w-20 h-20 shrink-0 mx-auto">
+          <svg viewBox="0 0 160 160" className="w-full h-full drop-shadow-xl overflow-visible">
+            {slices.map((sl, i) => (
+              <path key={i} d={sl.path} fill={sl.color} opacity="0.95" stroke="#020617" strokeWidth="2.5" />
+            ))}
+            <circle cx={CX} cy={CY} r={INNER_R - 1} fill="#020617" />
+            <text x={CX} y={CY + 4} fill="#e2e8f0" fontSize="18" fontWeight="900" textAnchor="middle">
+              {totalLiq > 0 ? slices.length : 0}
+            </text>
+          </svg>
         </div>
 
         {/* 범례 */}
-        <div className="flex-1 w-full space-y-3">
+        <div className="flex-1 min-w-0 flex flex-col justify-center space-y-1">
           {slices.map((sl, i) => (
-            <div key={i} className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="w-3 h-3 rounded-md shrink-0 border border-slate-700/50"
-                  style={{ backgroundColor: sl.color }} />
-                <span className="text-sm font-bold text-slate-300 truncate">{sl.label}</span>
+            <div key={i} className="flex justify-between items-center text-[10px] gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="w-1 h-3 rounded-full shrink-0" style={{ backgroundColor: sl.color }} />
+                <span className="text-slate-300 font-bold truncate">{sl.label}</span>
               </div>
-              <div className="text-right shrink-0">
-                <div className="text-sm sm:text-base font-black text-white leading-none">{Math.round(sl.value)}%</div>
-                {totalLiq > 0 && (
-                  <div className="text-[10px] sm:text-xs text-slate-500 font-mono mt-0.5">
-                    {fmtLiq(totalLiq * sl.value / 100)}
-                  </div>
-                )}
-              </div>
+              <span className="text-white font-mono font-bold shrink-0">{Math.round(sl.value)}%</span>
             </div>
           ))}
-
-          {/* 회전율 */}
-          {totalLiq > 0 && vol24h > 0 && (
-            <div className="mt-4 pt-4 border-t border-slate-800">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-slate-500">일 회전율</span>
-                <span className="text-sm font-black text-cyan-400 bg-cyan-400/10 px-2 py-1 rounded-md">
-                  {((vol24h / totalLiq) * 100).toFixed(1)}%
-                </span>
-              </div>
+          {vol24h > 0 && (
+            <div className="mt-1.5 pt-1.5 border-t border-slate-800/60 flex justify-between items-center">
+               <span className="text-[9px] font-bold text-slate-500">24H Vol</span>
+               <span className="text-[10px] text-slate-300 font-mono font-bold">{fmtLiq(vol24h)}</span>
             </div>
           )}
         </div>
@@ -501,42 +400,34 @@ export function RWAMarketVisualPanel({
   if (!navData) return null;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-6 shadow-lg">
-
-      {/* 헤더 */}
-      <div className="flex items-center gap-3">
-        <div className="w-2.5 h-6 rounded-full bg-cyan-400" />
-        <span className="text-lg font-black text-white">시장 분석</span>
-        <span className="text-sm font-bold text-slate-500 ml-auto bg-slate-800 px-4 py-1.5 rounded-full">
-          {asset.symbol} · 실시간
-        </span>
+    <div className="bg-[#020617] border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+      {/* 밀도 높은 헤더 */}
+      <div className="px-3 py-2.5 bg-slate-900 border-b border-slate-800 flex items-center gap-2 shrink-0">
+        <div className="w-2 h-4 rounded-sm bg-cyan-500" />
+        <span className="text-[11px] font-black text-white uppercase tracking-wider">Market Analytics</span>
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-[#020617] px-1.5 py-0.5 rounded border border-slate-800">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live
+          </span>
+        </div>
       </div>
 
-      {/* 1. 가격 비교 (역사적 라인 차트) */}
-      <div className="bg-slate-950/60 rounded-xl p-5 border border-slate-800/50">
-        <HistoricalPriceChart
-          asset={asset}
-          navData={navData}
-        />
-      </div>
+      <div className="grid grid-cols-1 divide-y divide-slate-800 flex-1">
+        {/* 1. 가격 비교 (역사적 라인 차트) */}
+        <div className="p-3 bg-[#020617]">
+          <HistoricalPriceChart asset={asset} navData={navData} />
+        </div>
 
-      {/* 구분선 */}
-      <div className="border-t border-slate-800" />
-
-      {/* 2. 스프레드 게이지 */}
-      <div className="bg-slate-950/60 rounded-xl p-5 border border-slate-800/50">
-        <SpreadGauge navData={navData} />
-      </div>
-
-      {/* 구분선 */}
-      <div className="border-t border-slate-800" />
-
-      {/* 3. 유동성 도넛 */}
-      <div className="bg-slate-950/60 rounded-xl p-5 border border-slate-800/50">
-        <LiquidityDonut
-          routeResult={routeResult}
-          liquidityFallback={liquidityFallback}
-        />
+        {/* 2 & 3. 스프레드 게이지 & 유동성 도넛 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-800 bg-[#020617]">
+          <div className="p-3 pb-2 flex items-center justify-center">
+            <SpreadGauge navData={navData} />
+          </div>
+          <div className="p-3">
+            <LiquidityDonut routeResult={routeResult} liquidityFallback={liquidityFallback} />
+          </div>
+        </div>
       </div>
     </div>
   );

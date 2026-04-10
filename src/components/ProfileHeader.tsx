@@ -106,7 +106,7 @@ export function ProfileHeader({
                             <div className="truncate">
                               <p className={`text-xs font-bold truncate ${isActive ? 'text-white' : 'text-slate-300'}`}>
                                 {w.label}
-                                {isSss && <span className="ml-1.5 px-1 py-0.5 rounded text-[8px] bg-cyan-500/20 text-cyan-400">SSS</span>}
+                                {isSss && <span className="ml-1.5 px-1 py-0.5 rounded text-[8px] bg-cyan-500/20 text-cyan-400 font-bold tracking-wider">SAR</span>}
                                 {isMpc && <span className="ml-1.5 px-1 py-0.5 rounded text-[8px] bg-cyan-500/20 text-cyan-400">MPC</span>}
                               </p>
                             </div>

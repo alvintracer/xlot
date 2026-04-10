@@ -4,6 +4,13 @@
 
 import { ALL_RWA_ASSETS } from '../constants/rwaAssets';
 import type { RWAAsset } from '../constants/rwaAssets';
+import { ALL_INSTRUMENTS } from '../constants/rwaInstruments';
+import { getHyperliquidCoinData } from './providers/market/hyperliquidProvider';
+import { getEdgeXContractData } from './providers/market/edgexProvider';
+import { getLighterMarketData } from './providers/market/lighterProvider';
+import { getOKXContractData } from './providers/market/okxProvider';
+import { getBitgetContractData } from './providers/market/bitgetProvider';
+import { bybitProvider } from './providers/market/bybitProvider';
 
 export interface RWAPrice {
   assetId: string;
@@ -22,6 +29,14 @@ export interface RWAPriceMap {
 let priceCache: RWAPriceMap | null = null;
 let lastFetchTime = 0;
 const CACHE_DURATION = 2 * 60 * 1000;
+
+function getCoinGeckoApiKey(): string {
+  const envKey = (import.meta as unknown as { env: { VITE_COINGECKO_API_KEY?: string } }).env?.VITE_COINGECKO_API_KEY;
+  if (!envKey) return '';
+  const keys = envKey.split(',').map(k => k.trim()).filter(Boolean);
+  if (keys.length === 0) return '';
+  return keys[Math.floor(Math.random() * keys.length)];
+}
 
 function buildFallback(exchangeRate = 1450): RWAPriceMap {
   const fallbackPrices: Record<string, { usd: number; change: number; mcap: number }> = {
@@ -56,16 +71,14 @@ export async function fetchRWAPrices(): Promise<RWAPriceMap> {
   const ids = assetsWithId.map(a => a.coingeckoId).join(',');
 
   try {
-    const apiKey = (import.meta as unknown as { env: { VITE_COINGECKO_API_KEY?: string } }).env?.VITE_COINGECKO_API_KEY;
-    const headers: HeadersInit = { 'Accept': 'application/json' };
-    if (apiKey) (headers as Record<string, string>)['x-cg-demo-api-key'] = apiKey;
+    const apiKey = getCoinGeckoApiKey();
+    const authParam = apiKey ? `&x_cg_demo_api_key=${apiKey}` : '';
 
     const [marketRes, fxRes] = await Promise.all([
       fetch(
-        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=20&page=1&sparkline=false&price_change_percentage=24h`,
-        { headers }
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=20&page=1&sparkline=false&price_change_percentage=24h${authParam}`
       ),
-      fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=krw', { headers }),
+      fetch(`https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=krw${authParam}`),
     ]);
 
     if (!marketRes.ok) throw new Error(`CoinGecko ${marketRes.status}`);
@@ -95,6 +108,221 @@ export async function fetchRWAPrices(): Promise<RWAPriceMap> {
       }
     });
 
+    // ── Hyperliquid perp prices (parallel, non-blocking) ──
+    try {
+      const hlInstruments = ALL_INSTRUMENTS.filter(i => i.id.startsWith('hl-'));
+      const hlCoinMap: Record<string, string> = { 'hl-paxg-perp': 'PAXG', 'hl-ondo-perp': 'ONDO' };
+
+      const hlResults = await Promise.allSettled(
+        hlInstruments.map(async (inst) => {
+          const coin = hlCoinMap[inst.id];
+          if (!coin) return null;
+          const data = await getHyperliquidCoinData(coin);
+          if (!data) return null;
+          return { id: inst.id, data, inst };
+        })
+      );
+
+      for (const r of hlResults) {
+        if (r.status === 'fulfilled' && r.value) {
+          const { id, data, inst } = r.value;
+          const prevDayPx = data.markPx / (1 + (data.markPx - data.oraclePx) / data.oraclePx); // approx
+          const change24h = data.oraclePx > 0 ? ((data.markPx - data.oraclePx) / data.oraclePx) * 100 : 0;
+          result[id] = {
+            assetId: id,
+            priceUsd: data.markPx,
+            priceKrw: data.markPx * exchangeRate,
+            change24h: change24h,
+            apy: data.fundingAnnualized,
+            marketCapUsd: data.openInterestUsd,
+            lastUpdated: now,
+          };
+        }
+      }
+    } catch (hlErr) {
+      console.warn('[rwaService] Hyperliquid fetch skipped:', hlErr);
+    }
+
+    // ── edgeX perp prices (parallel, non-blocking) ──
+    try {
+      const edgexMap: Record<string, string> = {
+        'edgex-paxg-perp': '10000227',
+        'edgex-xaut-perp': '10000234',
+        'edgex-silver-perp': '10000278',
+        'edgex-copper-perp': '10000279',
+      };
+      const edgexInstruments = ALL_INSTRUMENTS.filter(i => i.id in edgexMap);
+
+      const edgexResults = await Promise.allSettled(
+        edgexInstruments.map(async (inst) => {
+          const contractId = edgexMap[inst.id];
+          const data = await getEdgeXContractData(contractId);
+          if (!data) return null;
+          return { id: inst.id, data };
+        })
+      );
+
+      for (const r of edgexResults) {
+        if (r.status === 'fulfilled' && r.value) {
+          const { id, data } = r.value;
+          result[id] = {
+            assetId: id,
+            priceUsd: data.markPrice,
+            priceKrw: data.markPrice * exchangeRate,
+            change24h: data.priceChangePercent,
+            apy: data.fundingAnnualized,
+            marketCapUsd: data.openInterestUsd,
+            lastUpdated: now,
+          };
+        }
+      }
+    } catch (edgexErr) {
+      console.warn('[rwaService] edgeX fetch skipped:', edgexErr);
+    }
+
+    // ── lighter.xyz perp prices (parallel, non-blocking) ──
+    try {
+      const lighterMap: Record<string, string> = {
+        'lighter-xau-perp':  'XAU',
+        'lighter-xag-perp':  'XAG',
+        'lighter-paxg-perp': 'PAXG',
+        'lighter-oil-perp':  'BRENTOIL',
+      };
+      const lighterInstruments = ALL_INSTRUMENTS.filter(i => i.id in lighterMap);
+
+      const lighterResults = await Promise.allSettled(
+        lighterInstruments.map(async (inst) => {
+          const symbol = lighterMap[inst.id];
+          const data = await getLighterMarketData(symbol);
+          if (!data) return null;
+          return { id: inst.id, data };
+        })
+      );
+
+      for (const r of lighterResults) {
+        if (r.status === 'fulfilled' && r.value) {
+          const { id, data } = r.value;
+          result[id] = {
+            assetId: id,
+            priceUsd: data.lastPrice,
+            priceKrw: data.lastPrice * exchangeRate,
+            change24h: data.change24h,
+            apy: 0,
+            marketCapUsd: data.openInterestUsd,
+            lastUpdated: now,
+          };
+        }
+      }
+    } catch (lighterErr) {
+      console.warn('[rwaService] lighter.xyz fetch skipped:', lighterErr);
+    }
+
+    // ── OKX CEX perp prices (parallel, non-blocking) ──
+    try {
+      const okxMap: Record<string, string> = {
+        'okx-xau-perp': 'XAU-USDT-SWAP',
+        'okx-xag-perp': 'XAG-USDT-SWAP',
+      };
+      const okxInstruments = ALL_INSTRUMENTS.filter(i => i.id in okxMap);
+
+      const okxResults = await Promise.allSettled(
+        okxInstruments.map(async (inst) => {
+          const instId = okxMap[inst.id];
+          const data = await getOKXContractData(instId);
+          if (!data) return null;
+          return { id: inst.id, data };
+        })
+      );
+
+      for (const r of okxResults) {
+        if (r.status === 'fulfilled' && r.value) {
+          const { id, data } = r.value;
+          result[id] = {
+            assetId: id,
+            priceUsd: data.lastPrice,
+            priceKrw: data.lastPrice * exchangeRate,
+            change24h: data.priceChangePercent,
+            apy: data.fundingAnnualized,
+            marketCapUsd: data.openInterestUsd,
+            lastUpdated: now,
+          };
+        }
+      }
+    } catch (okxErr) {
+      console.warn('[rwaService] OKX fetch skipped:', okxErr);
+    }
+
+    // ── Bybit CEX perp prices (parallel, non-blocking) ──
+    try {
+      const bybitMap: Record<string, string> = {
+        'bybit-xau-perp': 'XAUUSDT',
+        'bybit-xag-perp': 'XAGUSDT',
+      };
+      const bybitInstruments = ALL_INSTRUMENTS.filter(i => i.id in bybitMap);
+
+      const bybitResults = await Promise.allSettled(
+        bybitInstruments.map(async (inst) => {
+          const instId = bybitMap[inst.id];
+          const data = await bybitProvider.getBybitContractData(instId);
+          if (!data) return null;
+          return { id: inst.id, data };
+        })
+      );
+
+      for (const r of bybitResults) {
+        if (r.status === 'fulfilled' && r.value) {
+          const { id, data } = r.value;
+          const lastPx = parseFloat(data.lastPrice);
+          result[id] = {
+            assetId: id,
+            priceUsd: lastPx,
+            priceKrw: lastPx * exchangeRate,
+            change24h: parseFloat(data.price24hPcnt) * 100,
+            apy: parseFloat(data.fundingRate) * 3 * 365 * 100, // Annualized
+            marketCapUsd: parseFloat(data.openInterest) * lastPx,
+            lastUpdated: now,
+          };
+        }
+      }
+    } catch (bybitErr) {
+      console.warn('[rwaService] Bybit fetch skipped:', bybitErr);
+    }
+
+    // ── Bitget CEX perp prices (parallel, non-blocking) ──
+    try {
+      const bitgetMap: Record<string, { symbol: string; productType: string }> = {
+        'bitget-xau-perp': { symbol: 'XAUUSDT', productType: 'USDT-FUTURES' },
+        'bitget-xag-perp': { symbol: 'XAGUSDT', productType: 'USDT-FUTURES' },
+      };
+      const bitgetInstruments = ALL_INSTRUMENTS.filter(i => i.id in bitgetMap);
+
+      const bitgetResults = await Promise.allSettled(
+        bitgetInstruments.map(async (inst) => {
+          const cfg = bitgetMap[inst.id];
+          const data = await getBitgetContractData(cfg.symbol, cfg.productType);
+          if (!data) return null;
+          return { id: inst.id, data };
+        })
+      );
+
+      for (const r of bitgetResults) {
+        if (r.status === 'fulfilled' && r.value) {
+          const { id, data } = r.value;
+          result[id] = {
+            assetId: id,
+            priceUsd: data.lastPrice,
+            priceKrw: data.lastPrice * exchangeRate,
+            change24h: data.priceChangePercent,
+            apy: data.fundingAnnualized,
+            marketCapUsd: data.openInterestUsd,
+            lastUpdated: now,
+          };
+        }
+      }
+    } catch (bitgetErr) {
+      console.warn('[rwaService] Bitget fetch skipped:', bitgetErr);
+    }
+
     priceCache = result;
     lastFetchTime = now;
     return result;
@@ -117,8 +345,9 @@ export function getChainName(chainId: number): string {
   switch (chainId) {
     case 1:    return 'Ethereum';
     case 137:  return 'Polygon';
-    case 8453: return 'Base';
-    default:   return `Chain ${chainId}`;
+    case 8453:  return 'Base';
+    case 42161: return 'Arbitrum';
+    default:    return `Chain ${chainId}`;
   }
 }
 
@@ -175,13 +404,11 @@ export async function fetchHistoricalData(
   let dexPrices: [number, number][] = [];
   try {
     if (asset.coingeckoId) {
-      const apiKey = (import.meta as unknown as { env: { VITE_COINGECKO_API_KEY?: string } }).env?.VITE_COINGECKO_API_KEY;
-      const headers: HeadersInit = { 'Accept': 'application/json' };
-      if (apiKey) (headers as Record<string, string>)['x-cg-demo-api-key'] = apiKey;
+      const apiKey = getCoinGeckoApiKey();
+      const authParam = apiKey ? `&x_cg_demo_api_key=${apiKey}` : '';
 
       const res = await fetch(
-        `https://api.coingecko.com/api/v3/coins/${asset.coingeckoId}/market_chart?vs_currency=usd&days=${days}&interval=daily`,
-        { headers }
+        `https://api.coingecko.com/api/v3/coins/${asset.coingeckoId}/market_chart?vs_currency=usd&days=${days}&interval=daily${authParam}`
       );
       if (res.ok) {
         const data = await res.json();
@@ -254,13 +481,11 @@ async function fetchXauUsd(): Promise<number> {
 
   try {
     // CoinGecko에서 PAXG(금 1oz)를 USD로 직접 가져오는 게 가장 안정적
-    const apiKey = (import.meta as unknown as { env: { VITE_COINGECKO_API_KEY?: string } }).env?.VITE_COINGECKO_API_KEY;
-    const headers: HeadersInit = { Accept: 'application/json' };
-    if (apiKey) (headers as Record<string, string>)['x-cg-demo-api-key'] = apiKey;
+    const apiKey = getCoinGeckoApiKey();
+    const authParam = apiKey ? `&x_cg_demo_api_key=${apiKey}` : '';
 
     const res = await fetch(
-      'https://api.coingecko.com/api/v3/simple/price?ids=pax-gold&vs_currencies=usd',
-      { headers }
+      `https://api.coingecko.com/api/v3/simple/price?ids=pax-gold&vs_currencies=usd${authParam}`
     );
     if (!res.ok) throw new Error('CoinGecko XAU fetch 실패');
     const data = await res.json();
@@ -348,4 +573,50 @@ export const RWA_LIQUIDITY_FALLBACK: Record<string, {
   'benji-usd': { liquidityUsd: 500_000,    volume24hUsd: 80_000,   source: 'Polygon DEX' },
   'paxg':      { liquidityUsd: 28_000_000, volume24hUsd: 5_200_000, source: 'Uniswap V3' },
   'xaut':      { liquidityUsd: 12_000_000, volume24hUsd: 2_100_000, source: 'Uniswap V3' },
+  'hl-paxg-perp': { liquidityUsd: 45_000_000, volume24hUsd: 17_500_000, source: 'Hyperliquid' },
+  'hl-ondo-perp': { liquidityUsd: 3_500_000,  volume24hUsd: 1_000_000,  source: 'Hyperliquid' },
+  'lighter-xau-perp':  { liquidityUsd: 16_000_000, volume24hUsd: 303_000_000, source: 'lighter.xyz' },
+  'lighter-xag-perp':  { liquidityUsd: 5_000_000,  volume24hUsd: 21_000_000,  source: 'lighter.xyz' },
+  'lighter-paxg-perp': { liquidityUsd: 2_000_000,  volume24hUsd: 2_300_000,   source: 'lighter.xyz' },
+  'lighter-oil-perp':  { liquidityUsd: 8_000_000,  volume24hUsd: 37_000_000,  source: 'lighter.xyz' },
+  'edgex-paxg-perp':   { liquidityUsd: 5_000_000, volume24hUsd: 4_800_000, source: 'edgeX' },
+  'edgex-xaut-perp':   { liquidityUsd: 35_000_000, volume24hUsd: 3_000_000, source: 'edgeX' },
+  'edgex-silver-perp': { liquidityUsd: 38_500_000, volume24hUsd: 2_000_000, source: 'edgeX' },
+  'edgex-copper-perp': { liquidityUsd: 11_500_000, volume24hUsd: 1_500_000, source: 'edgeX' },
+  'okx-xau-perp':     { liquidityUsd: 120_000_000, volume24hUsd: 85_000_000,  source: 'OKX' },
+  'okx-xag-perp':     { liquidityUsd: 30_000_000,  volume24hUsd: 18_000_000,  source: 'OKX' },
+  'bitget-xau-perp':  { liquidityUsd: 60_000_000,  volume24hUsd: 42_000_000,  source: 'Bitget' },
+  'bitget-xag-perp':  { liquidityUsd: 15_000_000,  volume24hUsd: 9_000_000,   source: 'Bitget' },
 };
+export function getInstrumentImageUrl(inst: import('../types/rwaInstrument').RWAInstrument): string {
+  if (inst.imageUrl) return inst.imageUrl;
+  
+  const s = inst.symbol.toLowerCase();
+  const rawId = inst.id.toLowerCase();
+  
+  if (s.includes('gold') || s === 'xauusdt' || s === 'paxg' || s === 'xaut') {
+    return 'https://s2.coinmarketcap.com/static/img/coins/64x64/4705.png'; // PAXG
+  }
+  if (s.includes('silver') || s === 'xagusdt') {
+    return 'https://s2.coinmarketcap.com/static/img/coins/64x64/23932.png'; // KAG
+  }
+  if (s === 'usdy' || rawId.includes('usdy')) return 'https://s2.coinmarketcap.com/static/img/coins/64x64/29255.png';
+  if (s === 'ousg' || rawId.includes('ousg')) return 'https://s2.coinmarketcap.com/static/img/coins/64x64/28669.png'; // Ondo
+  if (s === 'benji' || rawId.includes('benji')) return 'https://s2.coinmarketcap.com/static/img/coins/64x64/30252.png'; // Benji
+  if (s.includes('fbnd')) return 'https://s2.coinmarketcap.com/static/img/coins/64x64/36257.png';
+  
+  if (inst.issuer.toLowerCase().includes('injective')) {
+    return 'https://cryptologos.cc/logos/injective-inj-logo.svg';
+  }
+  
+  if (inst.structureType === 'asset_backed' || inst.assetClass === 'commodity') {
+    return 'https://s2.coinmarketcap.com/static/img/coins/64x64/4705.png';
+  }
+
+  // default realistic looking fallback
+  if (inst.assetClass === 'treasury' || inst.assetClass === 'credit') {
+    return 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg';
+  }
+
+  return 'https://cryptologos.cc/logos/tether-usdt-logo.svg';
+}

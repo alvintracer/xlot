@@ -14,16 +14,27 @@
 //         └──────────────────────┴───────────────────────────┘
 // ============================================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 // RWAYieldPanel no longer used in mobile (synced with instrument model)
 import { RWASwapModal } from '../components/RWASwapModal';
 import { RWAMarketVisualPanel } from '../components/RWAMarketVisual';
 import { RWAMarketScanner } from '../components/RWAMarketScanner';
 import { BadgeStrip, ConfidenceMeter, DisclosurePanel } from '../components/RWADisclosureBadges';
+import { PerpOrderPanel } from '../components/PerpOrderPanel';
+import { ProxyBrokerModal } from '../components/ProxyBrokerModal';
+import { CrossVenuePriceTable, getUnderlyingGroups } from '../components/CrossVenuePriceTable';
+import { InstrumentIcon } from '../components/InstrumentIcon';
+import { VENUE_CATEGORY_META } from '../types/rwaInstrument';
+import { RWAPortfolioPanel } from '../components/RWAPortfolioPanel';
+import { RWAStakingPanel } from '../components/RWAStakingPanel';
 
-// Legacy types (backward compat for existing components)
 import type { RWAAsset } from '../constants/rwaAssets';
 import { ALL_RWA_ASSETS, RWA_CATEGORY_COLORS } from '../constants/rwaAssets';
+
+import { getMyWallets } from '../services/walletService';
+import type { WalletSlot } from '../services/walletService';
+import { getDeviceId, getMyDevices } from '../utils/deviceService';
+import { ProfileHeader } from '../components/ProfileHeader';
 
 // New instrument model
 import { ALL_INSTRUMENTS, getExecutableInstruments, instrumentToLegacyAsset } from '../constants/rwaInstruments';
@@ -32,22 +43,23 @@ import { ASSET_CLASS_META, STRUCTURE_LABELS, EXECUTION_LABELS } from '../types/r
 import { computeConfidence } from '../services/confidenceScoringService';
 import { generateDisclosure } from '../services/disclosureService';
 
-import { fetchRWAPrices, fetchNAVData, RWA_LIQUIDITY_FALLBACK, formatApy, getChainName } from '../services/rwaService';
+import { fetchRWAPrices, fetchNAVData, RWA_LIQUIDITY_FALLBACK, formatApy, getChainName, getInstrumentImageUrl } from '../services/rwaService';
 import type { RWAPriceMap, NAVMap } from '../services/rwaService';
-import { getBestRWAExecution } from '../services/providers/rwaExecutionProvider';
+import { getBestInstrumentExecution, placeInstrumentOrder } from '../services/providers/rwaExecutionProvider';
 import type { RouteOption } from '../services/providers/rwaExecutionProvider';
 import type { DEXRouteResult } from '../services/swapService';
 import { useActiveAccount } from 'thirdweb/react';
+import toast from 'react-hot-toast';
 import { hasValidKYC } from '../services/credentialService';
 import { hasKYCOnDevice } from '../services/kycDeviceService';
 import {
   ShieldCheck, AlertCircle, ArrowRightLeft,
   Loader2, Info, Globe, Route as RouteIcon, Database, Clock,
-  ChevronDown, Star, Zap, Eye, TrendingUp
+  ChevronDown, Star, Zap, Eye, TrendingUp, User, ChevronRight
 } from 'lucide-react';
 import { KYCRegistrationModal } from '../components/KYCRegistrationModal';
+import { useTranslation } from 'react-i18next';
 
-// ============================================================
 function useIsPC() {
   const [isPC, setIsPC] = useState(() => window.innerWidth >= 1024);
   useEffect(() => {
@@ -63,12 +75,50 @@ interface TradePageProps {
   onKycRequest?: () => void;
 }
 
-const FX_THRESHOLD_USD = 10_000;
-const FX_PURPOSE_OPTIONS = ['해외 투자', '자산 운용', '유학/교육비', '해외 부동산', '기타 재산 형성'];
-
 export function TradePage({ onKycRequest }: TradePageProps) {
+  const { t, i18n } = useTranslation();
+  const [activeTab, setActiveTab] = useState<'trade' | 'portfolio' | 'staking'>('trade');
   const isPC = useIsPC();
   const smartAccount = useActiveAccount();
+
+  // Share profile state matching AssetView
+  const [wallets, setWallets] = useState<WalletSlot[]>([]);
+  const [activeWalletId, setActiveWalletId] = useState<string | null>(localStorage.getItem('xlot_active_wallet_id'));
+  const [allDevices, setAllDevices] = useState<any[]>([]);
+  const [currentDeviceName, setCurrentDeviceName] = useState("");
+  const currentDeviceId = getDeviceId();
+
+  useEffect(() => {
+    const fetchProfileData = async () => {
+       if (!smartAccount) return;
+       try {
+         const list = await getMyWallets(smartAccount.address);
+         setWallets(list);
+         const devices = await getMyDevices(smartAccount.address);
+         setAllDevices(devices);
+         const curr = devices.find((d: any) => d.device_uuid === currentDeviceId);
+         if (curr) setCurrentDeviceName(curr.nickname);
+       } catch (e) {
+         console.error(e);
+       }
+    };
+    fetchProfileData();
+  }, [currentDeviceId, smartAccount]);
+
+  const handleSelectActiveWallet = (id: string) => {
+    const wallet = wallets.find(w => w.id === id);
+    const canSign = smartAccount && (wallet?.addresses.evm?.toLowerCase() === smartAccount.address.toLowerCase());
+    if (!canSign) {
+       toast.error("지갑 서명 권한이 없습니다. (Not Active Signer)");
+       return;
+    }
+    setActiveWalletId(id);
+    localStorage.setItem("xlot_active_wallet_id", id);
+    toast.success("Active Trading Wallet Selected!");
+  };
+
+  const FX_THRESHOLD_USD = 10_000;
+  const FX_PURPOSE_OPTIONS = ['Overseas Investment', 'Asset Management', 'Education', 'Real Estate', 'Other Wealth Building'];
 
   const [prices, setPrices]   = useState<RWAPriceMap>({});
   const [navMap, setNavMap]   = useState<NAVMap>({});
@@ -85,6 +135,7 @@ export function TradePage({ onKycRequest }: TradePageProps) {
   const [bestRoutes, setBestRoutes] = useState<RouteOption[]>([]);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
   const [isRouteFetching, setIsRouteFetching] = useState(false);
+  const [isOrderSubmitting, setIsOrderSubmitting] = useState(false);
 
   // Buy Form State
   const [amountUsdc, setAmountUsdc] = useState('');
@@ -93,6 +144,10 @@ export function TradePage({ onKycRequest }: TradePageProps) {
   const [isCheckingKyc, setIsCheckingKyc] = useState(true);
   const [buyStep, setBuyStep]       = useState<'idle' | 'fx' | 'confirm' | 'buying' | 'done' | 'compare'>('idle');
   const [showKYCReg, setShowKYCReg] = useState(false);
+
+  // Venue-specific modals
+  const [showPerpPanel, setShowPerpPanel] = useState(false);
+  const [showProxyBroker, setShowProxyBroker] = useState(false);
 
   // Mobile
   // Mobile state moved to mobile render section
@@ -134,6 +189,8 @@ export function TradePage({ onKycRequest }: TradePageProps) {
     setBestRoutes([]);
     setBuyStep('idle');
     setFxPurpose('');
+    setShowPerpPanel(false);
+    setShowProxyBroker(false);
   };
 
   // ── Route fetching ──
@@ -152,13 +209,12 @@ export function TradePage({ onKycRequest }: TradePageProps) {
     setIsRouteFetching(true);
     try {
       const nav = navMap[inst.id]?.navUsd || null;
-      const legacyAsset = instrumentToLegacyAsset(inst);
-      if (!legacyAsset) return;
-      const results = await getBestRWAExecution(
-        legacyAsset as RWAAsset,
-        amount, chain.decimals === 6 ? 6 : 6, chain.decimals,
+      const results = await getBestInstrumentExecution(
+        inst,
+        amount,
         smartAccount?.address || '0x0000000000000000000000000000000000000000',
-        nav, 0.5
+        nav,
+        0.5,
       );
       setBestRoutes(results);
       setSelectedRouteIndex(0);
@@ -192,17 +248,47 @@ export function TradePage({ onKycRequest }: TradePageProps) {
   // ── Mobile render (synced with PC instrument model) ──
   if (!isPC) {
     return (
-      <div className="pb-28 animate-fade-in bg-[#020617] min-h-screen">
-        {/* Mobile Header */}
-        <div className="px-4 pt-4 pb-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Globe size={16} className="text-blue-500" />
-            <span className="text-xs font-black text-white">RWA Market Intelligence</span>
+      <div className="pb-28 animate-fade-in bg-[#020617] min-h-screen flex flex-col">
+        {/* Mobile Header Tabs */}
+        <div className="sticky top-0 z-40 bg-[#0a0f1e]/90 backdrop-blur-md border-b border-slate-800 shrink-0">
+          <div className="flex items-center justify-between px-4 pt-4 border-b border-transparent">
+             <div className="flex items-center gap-2">
+                <img src="/icon-192.png" alt="took" className="w-5 h-5 object-cover rounded-full" />
+                <span className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400">took RWA aggregator</span>
+             </div>
+             <div className="flex items-center gap-2">
+               <button onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'kr' : 'en')} className="text-[10px] font-bold px-2 py-1 bg-slate-900 border border-slate-800 rounded uppercase">
+                 {i18n.language.toUpperCase()}
+               </button>
+               <ProfileHeader 
+                 wallets={wallets}
+                 activeWalletId={activeWalletId}
+                 onSelectActiveWallet={handleSelectActiveWallet}
+                 allDevices={allDevices}
+                 currentDeviceName={currentDeviceName}
+                 currentDeviceId={currentDeviceId}
+                 onDeviceRename={() => {}}
+               />
+             </div>
           </div>
-          <p className="text-[10px] text-slate-500">{ALL_INSTRUMENTS.length} instruments · {new Set(ALL_INSTRUMENTS.map(i => i.assetClass)).size} asset classes</p>
+          <div className="flex gap-6 px-4 pt-2 overflow-x-auto custom-scrollbar">
+            <button onClick={() => setActiveTab('trade')} className={`pb-3 border-b-2 text-sm font-black whitespace-nowrap transition-all ${activeTab === 'trade' ? 'border-blue-400 text-blue-400' : 'border-transparent text-slate-500'}`}>Trade</button>
+            <button onClick={() => setActiveTab('portfolio')} className={`pb-3 border-b-2 text-sm font-black whitespace-nowrap transition-all ${activeTab === 'portfolio' ? 'border-blue-400 text-blue-400' : 'border-transparent text-slate-500'}`}>Portfolio</button>
+            <button onClick={() => setActiveTab('staking')} className={`pb-3 border-b-2 text-sm font-black whitespace-nowrap transition-all ${activeTab === 'staking' ? 'border-blue-400 text-blue-400' : 'border-transparent text-slate-500'}`}>Staking</button>
+          </div>
         </div>
 
-        {/* Asset Class Tabs (horizontal scroll) */}
+        {activeTab === 'portfolio' && <RWAPortfolioPanel />}
+        {activeTab === 'staking' && <RWAStakingPanel />}
+
+        {activeTab === 'trade' && (
+          <div className="flex-1 flex flex-col">
+            {/* Mobile Title */}
+            <div className="px-4 pt-4 pb-3">
+              <p className="text-[10px] text-slate-500">{ALL_INSTRUMENTS.length} instruments · {new Set(ALL_INSTRUMENTS.map(i => i.assetClass)).size} asset classes</p>
+            </div>
+
+            {/* Asset Class Tabs (horizontal scroll) */}
         <div className="px-4 pb-3 overflow-x-auto">
           <div className="flex gap-1.5 min-w-max">
             {[
@@ -239,8 +325,8 @@ export function TradePage({ onKycRequest }: TradePageProps) {
                 onClick={() => setMobileSelectedInst(inst)}
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-left hover:border-slate-700 transition-all">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl ${acMeta.color.bg} border ${acMeta.color.border} flex items-center justify-center text-lg shrink-0`}>
-                    {acMeta.icon}
+                  <div className="w-10 h-10 shrink-0">
+                    <InstrumentIcon instrument={inst} className="w-full h-full" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
@@ -287,6 +373,28 @@ export function TradePage({ onKycRequest }: TradePageProps) {
 
           // For executable assets with a valid legacy bridge, use the existing RWASwapModal
           if (isExec && legacyAsset) {
+            // Venue-based routing for mobile
+            if (inst.venueCategory === 'onchain_perps') {
+              return (
+                <PerpOrderPanel
+                  instrument={inst}
+                  prices={prices}
+                  onClose={() => setMobileSelectedInst(null)}
+                  walletAddress={smartAccount?.address}
+                />
+              );
+            }
+            if (inst.venueCategory === 'cex_perps') {
+              return (
+                <ProxyBrokerModal
+                  instrument={inst}
+                  prices={prices}
+                  onClose={() => setMobileSelectedInst(null)}
+                  walletAddress={smartAccount?.address}
+                />
+              );
+            }
+            // Default: DEX Spot swap modal
             return (
               <RWASwapModal
                 asset={legacyAsset as RWAAsset}
@@ -306,8 +414,8 @@ export function TradePage({ onKycRequest }: TradePageProps) {
                 {/* Header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl ${acMeta.color.bg} border ${acMeta.color.border} flex items-center justify-center text-xl`}>
-                      {acMeta.icon}
+                    <div className="w-10 h-10 shrink-0">
+                      <InstrumentIcon instrument={inst} className="w-full h-full" />
                     </div>
                     <div>
                       <p className="text-sm font-black text-white">{inst.displayName}</p>
@@ -358,6 +466,8 @@ export function TradePage({ onKycRequest }: TradePageProps) {
             </div>
           );
         })()}
+        </div>
+        )}
 
         {showKYCReg && <KYCRegistrationModal onClose={() => setShowKYCReg(false)} onSuccess={() => window.location.reload()} />}
       </div>
@@ -399,10 +509,112 @@ export function TradePage({ onKycRequest }: TradePageProps) {
     priceImpactPct: activeRoute.priceImpact,
   } : null;
 
-  const handleBuy = () => {
+  const handleBuy = async () => {
     if (!hasKyc) return setShowKYCReg(true);
     if (needsFxGate && !fxPurpose) return setBuyStep('fx');
     setBuyStep('confirm');
+
+    if (inst.venueCategory !== 'onchain_perps') {
+      return;
+    }
+    if (!smartAccount?.address) {
+      toast.error('Wallet connection required.');
+      return;
+    }
+    if (!activeRoute) {
+      toast.error('Please get a quote first.');
+      return;
+    }
+
+    setIsOrderSubmitting(true);
+    setBuyStep('buying');
+
+    try {
+      const avgPx = usdcAmount > 0 ? usdcAmount / Math.max(parseFloat(activeRoute.toAmountDisplay), 1e-12) : 0;
+      const limitPx = avgPx > 0
+        ? (avgPx * (1 + ((activeRoute.priceImpact || 0) + 0.5) / 100)).toFixed(8)
+        : undefined;
+
+      const result = await placeInstrumentOrder({
+        instrument: inst,
+        walletAddress: smartAccount.address,
+        side: 'buy',
+        orderType: 'limit',
+        size: activeRoute.toAmountDisplay,
+        price: limitPx,
+        timeInForce: 'IOC',
+        slippagePct: 0.5,
+        extras: {
+          signer: smartAccount,
+        },
+      });
+
+      if (result.status === 'submitted') {
+        setBuyStep('done');
+        toast.success('Order submitted.');
+        return;
+      }
+
+      if (result.status === 'requires_signature') {
+        try {
+          toast.loading('Signature required for 1-Click Trading.', { id: 'sig' });
+          
+          if (!smartAccount.signMessage) {
+             throw new Error('Connected wallet does not support signing.');
+          }
+
+          const rawRequest = result.request as Record<string, unknown> | undefined;
+          const messageToSign = typeof rawRequest?.message === 'string' 
+             ? rawRequest.message as string
+             : `Welcome to ${inst.venueCategory}!\n\nSign this message to authenticate your wallet.\n\nNonce: ${Date.now()}`;
+             
+          const signature = await smartAccount.signMessage({ message: messageToSign });
+          toast.dismiss('sig');
+          
+          // Re-submit the order with the signature
+          toast.loading('Submitting order...', { id: 'submit' });
+          const retryResult = await placeInstrumentOrder({
+            instrument: inst,
+            walletAddress: smartAccount.address,
+            side: 'buy',
+            orderType: 'limit',
+            size: activeRoute.toAmountDisplay,
+            price: limitPx,
+            timeInForce: 'IOC',
+            slippagePct: 0.5,
+            extras: {
+              signer: smartAccount,
+              walletSignature: signature,
+            },
+          });
+          toast.dismiss('submit');
+          
+          if (retryResult.status === 'submitted') {
+            setBuyStep('done');
+            toast.success('Order successfully submitted!');
+          } else {
+            setBuyStep('confirm');
+            toast.error(retryResult.error || 'Order submission failed.');
+          }
+          return;
+        } catch (e) {
+          toast.dismiss('sig');
+          toast.dismiss('submit');
+          toast.error(e instanceof Error ? e.message : 'Signature cancelled or failed.');
+          setBuyStep('confirm');
+          setIsOrderSubmitting(false);
+          return;
+        }
+      }
+
+      setBuyStep('confirm');
+      toast.error(result.error || 'Order submission failed.');
+    } catch (error) {
+      setBuyStep('confirm');
+      toast.error(error instanceof Error ? error.message : 'Order submission failed.');
+    } finally {
+      setIsOrderSubmitting(false);
+    }
   };
 
   return (
@@ -410,41 +622,81 @@ export function TradePage({ onKycRequest }: TradePageProps) {
 
       {/* ═══ LAYER 0: AGGREGATOR SUMMARY STRIP ═══ */}
       <div className="flex items-center gap-5 px-6 py-2.5 bg-[#0a0f1e] border-b border-slate-800 shrink-0">
-        <div className="flex items-center gap-2 pr-5 border-r border-slate-800">
-          <Globe size={18} className="text-blue-500" />
-          <div>
-            <div className="text-[9px] text-blue-400/80 font-bold uppercase tracking-widest">RWA Market Intelligence</div>
-            <div className="text-xs font-black text-white">Best Execution Aggregator</div>
+        <div className="flex items-center gap-6 pr-5 border-r border-slate-800">
+          <div className="flex items-center gap-2 pr-5 border-r border-slate-800">
+            <img src="/icon-192.png" alt="took" className="w-5 h-5 object-cover rounded-full" />
+            <div>
+              <div className="text-[9px] text-blue-400/80 font-bold uppercase tracking-widest leading-tight">took</div>
+              <div className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 leading-tight">RWA Aggregator</div>
+            </div>
           </div>
+          <nav className="flex items-center gap-1">
+            <button 
+              onClick={() => setActiveTab('trade')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${
+                activeTab === 'trade' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-500 hover:text-slate-300'
+              }`}>Trade</button>
+            <button 
+              onClick={() => setActiveTab('portfolio')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${
+                activeTab === 'portfolio' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-500 hover:text-slate-300'
+              }`}>Portfolio</button>
+            <button 
+              onClick={() => setActiveTab('staking')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${
+                activeTab === 'staking' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-500 hover:text-slate-300'
+              }`}>Staking</button>
+          </nav>
         </div>
-        <div className="flex items-center gap-6 text-xs">
-          <div>
-            <p className="text-[9px] text-slate-500 font-bold">Instruments</p>
-            <p className="font-mono text-white">{totalInstruments} <span className="text-[9px] text-slate-600">({executableCount} exec · {trackedCount} tracked)</span></p>
-          </div>
-          <div>
-            <p className="text-[9px] text-slate-500 font-bold">Coverage</p>
-            <p className="font-mono text-white">{assetClasses} Classes · {supportedChains} Chains</p>
-          </div>
-          <div>
-            <p className="text-[9px] text-slate-500 font-bold">Best Discount</p>
-            <p className="font-mono text-emerald-400">
-              {bestDiscountAsset ? `${Math.abs(bestDiscountAsset[1].spreadPct).toFixed(2)}%` : 'None'}
-            </p>
-          </div>
-          <div>
-            <p className="text-[9px] text-slate-500 font-bold">Max Yield</p>
-            <p className="font-mono text-emerald-400">{maxApy.toFixed(1)}%</p>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <Clock size={11} className="text-slate-500" />
-            <span className="text-[9px] text-slate-400 font-mono">Live · {lastUpdated.toLocaleTimeString()}</span>
+        
+        {/* Action Group & Stats */}
+        <div className="flex items-center text-xs flex-1">
+          {activeTab === 'trade' && (
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-[9px] text-slate-500 font-bold">Instruments</p>
+                <p className="font-mono text-white">{totalInstruments} <span className="text-[9px] text-slate-600">({executableCount} exec)</span></p>
+              </div>
+              <div>
+                <p className="text-[9px] text-slate-500 font-bold">Best Discount</p>
+                <p className="font-mono text-emerald-400">
+                  {bestDiscountAsset ? `${Math.abs(bestDiscountAsset[1].spreadPct).toFixed(2)}%` : 'None'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="ml-auto flex items-center gap-4">
+            <div className="flex items-center gap-2 pr-4 border-r border-slate-800">
+              <Clock size={11} className="text-slate-500" />
+              <span className="text-[9px] text-slate-400 font-mono">Live · {lastUpdated.toLocaleTimeString()}</span>
+            </div>
+            
+            {/* Nav Utilities */}
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'kr' : 'en')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-[10px] font-bold text-slate-300 transition-all uppercase">
+                {i18n.language.toUpperCase()}
+              </button>
+              
+              <ProfileHeader 
+                 wallets={wallets}
+                 activeWalletId={activeWalletId}
+                 onSelectActiveWallet={handleSelectActiveWallet}
+                 allDevices={allDevices}
+                 currentDeviceName={currentDeviceName}
+                 currentDeviceId={currentDeviceId}
+                 onDeviceRename={() => {}}
+               />
+            </div>
           </div>
         </div>
       </div>
 
       {/* ═══ MAIN CONTENT ═══ */}
-      <div className="flex flex-1 overflow-hidden">
+      {activeTab === 'trade' && (
+        <div className="flex flex-1 overflow-hidden">
 
         {/* ═══ LEFT: INSTRUMENT DETAIL + EXECUTION DRAWER ═══ */}
         <div className="w-[520px] xl:w-[560px] shrink-0 border-r border-slate-800 flex flex-col overflow-y-auto custom-scrollbar bg-[#050914]">
@@ -453,8 +705,8 @@ export function TradePage({ onKycRequest }: TradePageProps) {
           <div className="p-5 border-b border-slate-800 bg-gradient-to-b from-[#0a0f1e] to-transparent">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className={`w-11 h-11 rounded-xl ${acMeta.color.bg} border ${acMeta.color.border} flex items-center justify-center text-xl shadow-lg`}>
-                  {acMeta.icon}
+                <div className="w-11 h-11 shrink-0">
+                  <InstrumentIcon instrument={inst} className="w-full h-full" />
                 </div>
                 <div>
                   <h1 className="text-lg font-black text-white">{inst.displayName}</h1>
@@ -559,8 +811,58 @@ export function TradePage({ onKycRequest }: TradePageProps) {
               </div>
             )}
 
-            {/* ── Execution / Buy Form (only for swappable_now) ── */}
-            {isExecutable && (
+            {/* ── Venue-Specific Quick Action (Perps / CEX) ── */}
+            {isExecutable && inst.venueCategory === 'onchain_perps' && (
+              <div className="bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/20 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap size={14} className="text-blue-400" />
+                  <span className="text-sm font-black text-white">Perpetual Order</span>
+                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${VENUE_CATEGORY_META[inst.venueCategory].color.bg} ${VENUE_CATEGORY_META[inst.venueCategory].color.text}`}>
+                    {VENUE_CATEGORY_META[inst.venueCategory].label}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mb-3">
+                  {inst.issuer} Onchain Perps. Long/Short available.
+                </p>
+                <button onClick={() => setShowPerpPanel(true)}
+                  className="w-full py-3 rounded-xl font-black text-sm text-white bg-blue-600 hover:bg-blue-500 transition-all shadow-[0_0_15px_rgba(37,99,235,0.15)]">
+                  ⚡ Open Perp Order Panel
+                </button>
+              </div>
+            )}
+
+            {isExecutable && inst.venueCategory === 'cex_perps' && (
+              <div className="bg-gradient-to-r from-amber-500/10 to-transparent border border-amber-500/20 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap size={14} className="text-amber-400" />
+                  <span className="text-sm font-black text-white">Proxy DEX</span>
+                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${VENUE_CATEGORY_META[inst.venueCategory].color.bg} ${VENUE_CATEGORY_META[inst.venueCategory].color.text}`}>
+                    {VENUE_CATEGORY_META[inst.venueCategory].label}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mb-3">
+                  Access {inst.issuer} CEX liquidity via Traverse Proxy Vault.
+                </p>
+                <button onClick={() => setShowProxyBroker(true)}
+                  className="w-full py-3 rounded-xl font-black text-sm text-white bg-amber-600 hover:bg-amber-500 transition-all shadow-[0_0_15px_rgba(245,158,11,0.15)]">
+                  Open Proxy DEX
+                </button>
+              </div>
+            )}
+
+            {/* ── CrossVenue Price Comparison (for commodity instruments) ── */}
+            {(inst.subCategory === 'gold' || inst.subCategory === 'silver' || inst.subCategory === 'copper' || inst.subCategory === 'oil') && (
+              <CrossVenuePriceTable
+                underlyingKey={inst.subCategory}
+                prices={prices}
+                navMap={navMap}
+                onSelectInstrument={handleInstrumentSelect}
+                selectedId={inst.id}
+              />
+            )}
+
+            {/* ── Execution / Buy Form (only for dex_spot swappable_now) ── */}
+            {isExecutable && inst.venueCategory === 'dex_spot' && (
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-sm font-black text-white flex items-center gap-2">
@@ -686,7 +988,7 @@ export function TradePage({ onKycRequest }: TradePageProps) {
                         <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 space-y-2">
                           <div className="flex items-center gap-1.5">
                             <Info size={11} className="text-cyan-400 shrink-0" />
-                            <p className="text-[10px] text-cyan-300 font-bold">FX Gate — 거래 목적 필수</p>
+                            <p className="text-[10px] text-cyan-300 font-bold">FX Gate — Purpose Required</p>
                           </div>
                           <div className="grid grid-cols-2 gap-1.5">
                             {FX_PURPOSE_OPTIONS.map(opt => (
@@ -711,9 +1013,10 @@ export function TradePage({ onKycRequest }: TradePageProps) {
                   )}
 
                   {/* Buy Button */}
-                  <button onClick={handleBuy} disabled={!canBuy || isRouteFetching}
+                  <button onClick={handleBuy} disabled={!canBuy || isRouteFetching || isOrderSubmitting}
                     className="w-full py-3 rounded-xl font-black text-sm text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:bg-slate-800 transition-all shadow-[0_0_15px_rgba(37,99,235,0.2)]">
-                    {isRouteFetching ? 'Scanning Venues...'
+                    {isOrderSubmitting ? 'Submitting Order...'
+                      : isRouteFetching ? 'Scanning Venues...'
                       : !canBuy && usdcAmount < inst.minInvestmentUsd && usdcAmount > 0 ? `Min $${inst.minInvestmentUsd.toLocaleString()}`
                       : !canBuy && usdcAmount > 0 ? 'No viable route'
                       : !hasKyc ? 'Complete KYC'
@@ -736,8 +1039,30 @@ export function TradePage({ onKycRequest }: TradePageProps) {
           />
         </div>
       </div>
+      )}
+
+      {activeTab === 'portfolio' && <RWAPortfolioPanel />}
+      {activeTab === 'staking' && <RWAStakingPanel />}
 
       {showKYCReg && <KYCRegistrationModal onClose={() => setShowKYCReg(false)} onSuccess={() => window.location.reload()} />}
+
+      {/* Venue-specific modals */}
+      {showPerpPanel && (
+        <PerpOrderPanel
+          instrument={selectedInstrument}
+          prices={prices}
+          onClose={() => setShowPerpPanel(false)}
+          walletAddress={smartAccount?.address}
+        />
+      )}
+      {showProxyBroker && (
+        <ProxyBrokerModal
+          instrument={selectedInstrument}
+          prices={prices}
+          onClose={() => setShowProxyBroker(false)}
+          walletAddress={smartAccount?.address}
+        />
+      )}
     </div>
   );
 }

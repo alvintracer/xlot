@@ -1,5 +1,5 @@
 // xLOT Service Worker — PWA 오프라인 지원
-const CACHE_NAME = 'xlot-v1';
+const CACHE_NAME = 'xlot-v2';
 const STATIC_ASSETS = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
@@ -20,9 +20,19 @@ self.addEventListener('activate', e => {
 
 // Network first — 금융앱 특성상 항상 최신 데이터 우선
 self.addEventListener('fetch', e => {
-  // API, Supabase 요청은 캐시 안 함
-  if (e.request.url.includes('supabase') ||
-      e.request.url.includes('api.') ||
+  const url = e.request.url;
+
+  // API, Supabase, 중계서버, 외부 거래소 요청은 캐시 안 함 — SW 완전 스킵
+  if (url.includes('supabase') ||
+      url.includes('api.') ||
+      url.includes('49.247.139.241') ||
+      url.includes('pro.edgex.exchange') ||
+      url.includes('okx.com') ||
+      url.includes('bitget.com') ||
+      url.includes('zklighter') ||
+      url.includes('coingecko') ||
+      url.includes('trongrid') ||
+      url.includes('hyperliquid') ||
       e.request.method !== 'GET') return;
 
   e.respondWith(

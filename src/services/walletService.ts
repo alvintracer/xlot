@@ -82,11 +82,10 @@ import { fetchCryptoPrices } from "./priceService";
 // ==========================================
 
 // ✨ 여기서 조회할 체인들을 관리합니다. (Thirdweb Chain 객체 매핑)
+// 테스트넷(Sepolia/Amoy) 제거 → 불필요한 RPC 호출 削감
 const TARGET_CHAINS = [
     { chain: ethMainnet, symbol: 'ETH', name: 'Ethereum' },
-    { chain: ethSepolia, symbol: 'ETH', name: 'Sepolia' },
     { chain: polygon, symbol: 'POL', name: 'Polygon' },
-    { chain: polygonAmoy, symbol: 'POL', name: 'Amoy' },
     { chain: base, symbol: 'ETH', name: 'Base' },
     { chain: arbitrum, symbol: 'ETH', name: 'Arbitrum' },
 ];
@@ -264,10 +263,7 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
             if (['UPBIT'].includes(wallet.wallet_type)) {
                 if (wallet.api_access_key && wallet.api_secret_key) {
                     try {
-                        // ✨ [수정 1] 중계 서버 URL (상단에 상수로 빼두셔도 됩니다)
                         const RELAY_URL = "http://49.247.139.241:3000";
-
-                        // ✨ [수정 2] POST 요청으로 변경 (키를 Body에 담아서 전송)
                         const response = await fetch(`${RELAY_URL}/upbit/accounts`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -278,12 +274,9 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                         });
 
                         const upbitAssets = await response.json();
-
-                        // ✨ [수정 3] 에러 체크 방식 변경 (Supabase 방식 -> 일반 JSON 방식)
                         if (upbitAssets.error) throw new Error(upbitAssets.error);
                         if (!Array.isArray(upbitAssets)) throw new Error("Invalid Data");
 
-                        // --- (이하 매핑 로직은 기존과 동일합니다) ---
                         const krw = upbitAssets.find((a: any) => a.currency === "KRW");
                         wallet.balances.krw = krw ? Number(krw.balance) : 0;
                         
@@ -304,15 +297,12 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                             }
                         });
                         
-                        // 총 자산 가치 계산 (KRW 현금 포함 여부는 기획에 따라 조정)
                         const totalCoinKrw = upbitAssets.reduce((acc: number, cur: any) => 
                             acc + (Number(cur.balance) * Number(cur.avg_buy_price)), 0);
-                        
-                        // 현금(KRW)까지 포함한 총 자산
                         const finalTotal = totalCoinKrw + (wallet.balances.krw || 0);
 
                         wallet.balanceDisplay = `≈ ₩ ${Math.floor(finalTotal).toLocaleString()}`;
-                        wallet.total_value_krw = Math.floor(finalTotal); // 정렬용 값 업데이트
+                        wallet.total_value_krw = Math.floor(finalTotal);
 
                     } catch (e: any) {
                         console.error("Upbit Load Error:", e);
@@ -323,149 +313,138 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                 }
             }
 
-            // ✨ B. EVM (Thirdweb SDK 사용 - 빠르고 안정적)
-            if (wallet.addresses.evm) {
-                // 네이티브 코인 (ETH, POL 등)
-                const evmPromises = TARGET_CHAINS.map(async (item) => {
-                    try {
-                        const result = await getWalletBalance({
-                            client,
-                            chain: item.chain,
-                            address: wallet.addresses.evm!
-                        });
+            // ========================================
+            // ✨ 최적화: 모든 체인을 병렬로 동시 실행
+            //    기존: EVM → SOL → BTC → TRX → INJ (직렬, 20s+)
+            //    변경: 전부 동시 (병렬, ~3-5s)
+            // ========================================
 
-                        const balance = Number(result.displayValue);
-
-                        if (balance > 0) {
-                            let price = 0;
-                            let change = 0;
-                            const symbolKey = item.symbol.toLowerCase();
-                            const tokenPrices = prices?.tokens as any; 
-
-                            if (tokenPrices && tokenPrices[symbolKey]) {
-                                price = tokenPrices[symbolKey].usd;
-                                change = tokenPrices[symbolKey].change;
-                            }
-
-                            if (item.chain.id === 1) wallet.balances.evm = balance;
-
-                            return {
-                                symbol: item.symbol,
-                                name: item.name,
-                                balance: balance,
-                                price: price,
-                                value: balance * price,
-                                change: change,
-                                network: item.name,
-                                isNative: true
-                            } as WalletAsset;
-                        }
-                    } catch (e) {
-                    }
-                    return null;
-                });
-
-                // ERC-20 토큰 (USDC, USDT 등)
-                const tokenPromises = TARGET_TOKENS.map(async (item) => {
-                    try {
-                        const result = await getWalletBalance({
-                            client,
-                            chain: item.chain,
-                            address: wallet.addresses.evm!,
-                            tokenAddress: item.tokenAddress
-                        });
-
-                        const balance = Number(result.displayValue);
-
-                        if (balance > 0) {
-                            let price = 0;
-                            let change = 0;
-                            const symbolKey = item.symbol.toLowerCase();
-                            const tokenPrices = prices?.tokens as any; 
-
-                            if (tokenPrices && tokenPrices[symbolKey]) {
-                                price = tokenPrices[symbolKey].usd;
-                                change = tokenPrices[symbolKey].change;
-                            }
-
-                            return {
-                                symbol: item.symbol,
-                                name: item.name,
-                                balance: balance,
-                                price: price,
-                                value: balance * price,
-                                change: change,
-                                network: item.chain.id === 1 ? 'Ethereum' : 'EVM',
-                                isNative: false,
-                                tokenAddress: item.tokenAddress
-                            } as WalletAsset;
-                        }
-                    } catch (e) {
-                    }
-                    return null;
-                });
-
-                const [evmAssets, tokenAssets] = await Promise.all([
-                    Promise.all(evmPromises),
-                    Promise.all(tokenPromises)
+            /** 타임아웃 래퍼 — 느린 RPC가 전체를 블록하지 않도록 */
+            const withTimeout = (promise: Promise<void>, ms: number, label: string): Promise<void> =>
+                Promise.race([
+                    promise,
+                    new Promise<void>(resolve => setTimeout(() => {
+                        console.warn(`[walletService] ${label} timed out (${ms}ms)`);
+                        resolve();
+                    }, ms)),
                 ]);
-                
-                wallet.assets.push(
-                    ...(evmAssets.filter(Boolean) as WalletAsset[]),
-                    ...(tokenAssets.filter(Boolean) as WalletAsset[])
-                );
+
+            const CHAIN_TIMEOUT = 6000; // 6초
+
+            // ── 병렬 작업 정의 ──
+            const parallelTasks: Promise<void>[] = [];
+
+            // B. EVM (Thirdweb SDK)
+            if (wallet.addresses.evm) {
+                parallelTasks.push(withTimeout((async () => {
+                    const evmPromises = TARGET_CHAINS.map(async (item) => {
+                        try {
+                            const result = await getWalletBalance({
+                                client,
+                                chain: item.chain,
+                                address: wallet.addresses.evm!
+                            });
+                            const balance = Number(result.displayValue);
+                            if (balance > 0) {
+                                let price = 0;
+                                let change = 0;
+                                const symbolKey = item.symbol.toLowerCase();
+                                const tokenPrices = prices?.tokens as any; 
+                                if (tokenPrices && tokenPrices[symbolKey]) {
+                                    price = tokenPrices[symbolKey].usd;
+                                    change = tokenPrices[symbolKey].change;
+                                }
+                                if (item.chain.id === 1) wallet.balances.evm = balance;
+                                return {
+                                    symbol: item.symbol, name: item.name, balance, price,
+                                    value: balance * price, change, network: item.name, isNative: true
+                                } as WalletAsset;
+                            }
+                        } catch (e) {}
+                        return null;
+                    });
+
+                    const tokenPromises = TARGET_TOKENS.map(async (item) => {
+                        try {
+                            const result = await getWalletBalance({
+                                client,
+                                chain: item.chain,
+                                address: wallet.addresses.evm!,
+                                tokenAddress: item.tokenAddress
+                            });
+                            const balance = Number(result.displayValue);
+                            if (balance > 0) {
+                                let price = 0;
+                                let change = 0;
+                                const symbolKey = item.symbol.toLowerCase();
+                                const tokenPrices = prices?.tokens as any; 
+                                if (tokenPrices && tokenPrices[symbolKey]) {
+                                    price = tokenPrices[symbolKey].usd;
+                                    change = tokenPrices[symbolKey].change;
+                                }
+                                return {
+                                    symbol: item.symbol, name: item.name, balance, price,
+                                    value: balance * price, change,
+                                    network: item.chain.id === 1 ? 'Ethereum' : 'EVM',
+                                    isNative: false, tokenAddress: item.tokenAddress
+                                } as WalletAsset;
+                            }
+                        } catch (e) {}
+                        return null;
+                    });
+
+                    const [evmAssets, tokenAssets] = await Promise.all([
+                        Promise.all(evmPromises),
+                        Promise.all(tokenPromises)
+                    ]);
+                    wallet.assets.push(
+                        ...(evmAssets.filter(Boolean) as WalletAsset[]),
+                        ...(tokenAssets.filter(Boolean) as WalletAsset[])
+                    );
+                })(), CHAIN_TIMEOUT, `EVM-${wallet.label}`)!);
             }
 
             // C. Solana
             if (wallet.addresses.sol) {
-                try {
-                    const bal = await getSolanaConnection().getBalance(new PublicKey(wallet.addresses.sol));
+                parallelTasks.push(withTimeout((async () => {
+                    const bal = await getSolanaConnection().getBalance(new PublicKey(wallet.addresses.sol!));
                     const solVal = bal / LAMPORTS_PER_SOL;
                     wallet.balances.sol = solVal;
                     if (solVal > 0) {
                         wallet.assets.push({
-                            symbol: "SOL",
-                            name: "Solana",
-                            balance: solVal,
+                            symbol: "SOL", name: "Solana", balance: solVal,
                             price: prices?.tokens.sol.usd || 0,
                             value: solVal * (prices?.tokens.sol.usd || 0),
                             change: prices?.tokens.sol.change || 0,
-                            network: "Solana",
-                            isNative: true
+                            network: "Solana", isNative: true
                         });
                     }
-                    // SPL 토큰 (USDC, USDT)
-                    const splAssets = await fetchSPLTokenBalances(wallet.addresses.sol, prices);
+                    const splAssets = await fetchSPLTokenBalances(wallet.addresses.sol!, prices);
                     wallet.assets.push(...splAssets);
-                } catch (e) { wallet.balances.sol = 0; }
+                })(), CHAIN_TIMEOUT, `SOL-${wallet.label}`)!);
             }
 
             // D. Bitcoin
             if (wallet.addresses.btc) {
-                try {
-                    const btcVal = await fetchBitcoinBalance(wallet.addresses.btc);
+                parallelTasks.push(withTimeout((async () => {
+                    const btcVal = await fetchBitcoinBalance(wallet.addresses.btc!);
                     wallet.balances.btc = btcVal;
                     if (btcVal > 0) {
                         wallet.assets.push({
-                            symbol: "BTC",
-                            name: "Bitcoin",
-                            balance: btcVal,
+                            symbol: "BTC", name: "Bitcoin", balance: btcVal,
                             price: prices?.tokens.btc.usd || 0,
                             value: btcVal * (prices?.tokens.btc.usd || 0),
                             change: prices?.tokens.btc.change || 0,
-                            network: "Bitcoin",
-                            isNative: true
+                            network: "Bitcoin", isNative: true
                         });
                     }
-                } catch(e) { wallet.balances.btc = 0; }
+                })(), CHAIN_TIMEOUT, `BTC-${wallet.label}`)!);
             }
 
             // E. Tron
             if (wallet.addresses.trx) {
-                try {
+                parallelTasks.push(withTimeout((async () => {
                     const headers: HeadersInit = { "Content-Type": "application/json" };
-
-                    // VITE_TRONSCAN_API_KEYS 또는 VITE_TRON_PRO_API_KEY 중 사용 가능한 것으로 랜덤 로테이션
                     const tronKeyStr = (import.meta.env.VITE_TRONSCAN_API_KEYS || import.meta.env.VITE_TRON_PRO_API_KEY || '').trim();
                     if (tronKeyStr) {
                         const keys = tronKeyStr.split(',').map((k: string) => k.trim()).filter(Boolean);
@@ -475,29 +454,24 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                     const tronRes = await fetch(`https://api.trongrid.io/v1/accounts/${wallet.addresses.trx}`, { headers });
                     const tronData = await tronRes.json();
                     
-                    if (tronData && tronData.data && tronData.data.length > 0) {
+                    if (tronData?.data?.length > 0) {
                         const acc = tronData.data[0];
                         const trxVal = (acc.balance || 0) / 1000000;
                         wallet.balances.trx = trxVal;
-                        
                         if (trxVal > 0) {
                             wallet.assets.push({
-                                symbol: "TRX",
-                                name: "Tron",
-                                balance: trxVal,
+                                symbol: "TRX", name: "Tron", balance: trxVal,
                                 price: prices?.tokens.trx.usd || 0,
                                 value: trxVal * (prices?.tokens.trx.usd || 0),
                                 change: prices?.tokens.trx.change || 0,
-                                network: "Tron",
-                                isNative: true
+                                network: "Tron", isNative: true
                             });
                         }
                     } else {
                         wallet.balances.trx = 0;
                     }
 
-                    // TRC20 USDT 명시적 단일 조회 (ABI 직접 주입하여 429 에러 방지)
-                    // (지갑이 TRX를 받은 적 없는 미활성 상태여도 컨트랙트에는 USDT 잔고가 있을 수 있음)
+                    // TRC20 USDT
                     try {
                         const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
                         const MINIMAL_USDT_ABI = [{
@@ -507,64 +481,49 @@ export async function getMyWallets(userId: string): Promise<WalletSlot[]> {
                             "outputs": [{"name": "", "type": "uint256"}],
                             "type": "function"
                         }];
-                        
                         const tron = getTronWeb();
-                        tron.setAddress(wallet.addresses.trx);
-                        // ABI를 수동으로 제공하면 노드에 ABI 다운로드 요청(rate limit 원인)을 날리지 않음
+                        tron.setAddress(wallet.addresses.trx!);
                         const contract = await tron.contract(MINIMAL_USDT_ABI, USDT_CONTRACT);
-                        const rawBalance = await contract.balanceOf(wallet.addresses.trx).call();
+                        const rawBalance = await contract.balanceOf(wallet.addresses.trx!).call();
                         const usdtVal = Number(rawBalance.toString()) / 1000000;
-
                         if (usdtVal > 0) {
-                            let usdtPrice = 1;
-                            let usdtChange = 0;
+                            let usdtPrice = 1, usdtChange = 0;
                             const pTokens = prices?.tokens as any;
-                            if (pTokens && pTokens['usdt']) {
-                                usdtPrice = pTokens['usdt'].usd;
-                                usdtChange = pTokens['usdt'].change;
-                            }
-
+                            if (pTokens?.['usdt']) { usdtPrice = pTokens['usdt'].usd; usdtChange = pTokens['usdt'].change; }
                             wallet.assets.push({
-                                symbol: "USDT",
-                                name: "Tether USD",
-                                balance: usdtVal,
-                                price: usdtPrice,
-                                value: usdtVal * usdtPrice,
-                                change: usdtChange,
-                                network: "Tron",
-                                isNative: false,
-                                tokenAddress: USDT_CONTRACT
+                                symbol: "USDT", name: "Tether USD", balance: usdtVal,
+                                price: usdtPrice, value: usdtVal * usdtPrice, change: usdtChange,
+                                network: "Tron", isNative: false, tokenAddress: USDT_CONTRACT
                             });
                         }
                     } catch (usdtErr) {
-                         console.warn('Explicit USDT fetch failed:', usdtErr);
+                        console.warn('Explicit USDT fetch failed:', usdtErr);
                     }
-                } catch (e) { 
-                    wallet.balances.trx = 0; 
-                    console.warn('Tron / TRC20 fetch error:', e);
-                }
+                })(), CHAIN_TIMEOUT, `TRX-${wallet.label}`)!);
             }
 
             // F. Injective
             if (wallet.addresses.inj) {
-                try {
-                    const injVal = await fetchInjectiveBalance(wallet.addresses.inj);
+                parallelTasks.push(withTimeout((async () => {
+                    const injVal = await fetchInjectiveBalance(wallet.addresses.inj!);
                     wallet.balances.inj = injVal;
                     if (injVal > 0) {
                         const injPrices = prices?.tokens as any;
                         wallet.assets.push({
-                            symbol: "INJ",
-                            name: "Injective",
-                            balance: injVal,
+                            symbol: "INJ", name: "Injective", balance: injVal,
                             price: injPrices?.inj?.usd || 0,
                             value: injVal * (injPrices?.inj?.usd || 0),
                             change: injPrices?.inj?.change || 0,
-                            network: "Injective",
-                            isNative: true
+                            network: "Injective", isNative: true
                         });
                     }
-                } catch (e) { wallet.balances.inj = 0; }
+                })(), CHAIN_TIMEOUT, `INJ-${wallet.label}`)!);
             }
+
+            // ✨ 모든 체인 동시에 실행!
+            console.time(`[wallet] ${wallet.label} chains`);
+            await Promise.all(parallelTasks);
+            console.timeEnd(`[wallet] ${wallet.label} chains`);
 
             // G. 총 가치 계산
             const totalUsd = wallet.assets.reduce((acc, cur) => acc + cur.value, 0);

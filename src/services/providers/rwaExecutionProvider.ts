@@ -2,8 +2,13 @@
 import { get1inchQuote, get0xQuote, getJupiterQuote, getOdosQuote } from '../swapService';
 import type { SwapQuote } from '../swapService';
 import type { RWAAsset } from '../../constants/rwaAssets';
+import type { RWAInstrument } from '../../types/rwaInstrument';
 import { InjectiveExecutionProvider } from './execution/injectiveExecutionProvider';
-import { ALL_INSTRUMENTS } from '../../constants/rwaInstruments';
+import { HyperliquidExecutionProvider } from './execution/hyperliquidExecutionProvider';
+import { LighterExecutionProvider } from './execution/lighterExecutionProvider';
+import { EdgeXExecutionProvider } from './execution/edgexExecutionProvider';
+import { ALL_INSTRUMENTS, instrumentToLegacyAsset } from '../../constants/rwaInstruments';
+import type { ExecutionProvider, ExecutionQuote, PlaceOrderRequest, OrderPlacementResult } from './types';
 
 export interface RouteOption extends SwapQuote {
   providerName: string;
@@ -140,6 +145,158 @@ export async function getBestRWAExecution(
   options.sort((a, b) => b.executionScore - a.executionScore);
 
   return options;
+}
+
+function inferInputDecimals(symbol: string): number {
+  if (symbol === 'USDC' || symbol === 'USDT') return 6;
+  return 18;
+}
+
+function mapExecutionQuoteToRouteOption(
+  quote: ExecutionQuote,
+  instrument: RWAInstrument,
+  amountWei: string,
+  fromDecimals: number,
+  navUsd: number | null,
+  inputUsd: number,
+): RouteOption {
+  const outputTokens = parseFloat(quote.toAmountDisplay);
+  const effectivePrice = outputTokens > 0 ? inputUsd / outputTokens : Infinity;
+
+  let navSpread = 0;
+  if (navUsd && navUsd > 0 && effectivePrice !== Infinity) {
+    navSpread = ((effectivePrice - navUsd) / navUsd) * 100;
+  }
+
+  const warnings: string[] = [];
+  if (quote.priceImpact > 1.0) warnings.push('High price impact');
+  if (navSpread > 0.5) warnings.push('Price is significantly above reference');
+
+  const baseOutput = Math.floor(outputTokens * 10);
+  const priceImpactPenalty = Math.floor((quote.priceImpact || 0) * 50);
+  const gasPenalty = Math.floor(quote.estimatedGasUsd * 2);
+  const navDiscountBonus = Math.floor(navSpread * -20);
+  const totalScore = 1000 + baseOutput - priceImpactPenalty - gasPenalty + navDiscountBonus;
+
+  return {
+    provider: quote.provider,
+    fromToken: {
+      symbol: instrument.chains[0]?.buyWithSymbol || 'USDC',
+      address: instrument.chains[0]?.buyWithAddress || '',
+      decimals: fromDecimals,
+    },
+    toToken: {
+      symbol: instrument.symbol,
+      address: instrument.chains[0]?.contractAddress || '',
+      decimals: instrument.chains[0]?.decimals || 6,
+    },
+    fromAmount: amountWei,
+    toAmount: quote.toAmount,
+    toAmountDisplay: quote.toAmountDisplay,
+    estimatedGasUsd: quote.estimatedGasUsd,
+    priceImpact: quote.priceImpact,
+    route: quote.route,
+    tx: quote.tx ? { ...quote.tx, gasPrice: '0' } : undefined,
+    providerName: quote.provider,
+    executionScore: Math.floor(totalScore),
+    scoreBreakdown: {
+      baseOutput,
+      priceImpactPenalty: -priceImpactPenalty,
+      gasPenalty: -gasPenalty,
+      navDiscountBonus,
+    },
+    navSpread,
+    gasCostUsd: quote.estimatedGasUsd,
+    warnings,
+  };
+}
+
+function getPerpExecutionProvider(instrument: RWAInstrument): ExecutionProvider | null {
+  if (instrument.id.startsWith('hl-')) return HyperliquidExecutionProvider;
+  if (instrument.id.startsWith('lighter-')) return LighterExecutionProvider;
+  if (instrument.id.startsWith('edgex-')) return EdgeXExecutionProvider;
+  if (instrument.chains.some(c => c.chainId === 888)) return InjectiveExecutionProvider;
+  return null;
+}
+
+export async function getBestInstrumentExecution(
+  instrument: RWAInstrument,
+  fromAmount: string,
+  walletAddress: string,
+  navUsd: number | null,
+  slippagePct = 0.5,
+): Promise<RouteOption[]> {
+  const chain = instrument.chains[0];
+  if (!chain) return [];
+
+  const fromDecimals = inferInputDecimals(chain.buyWithSymbol);
+  const amountWei = Math.floor(parseFloat(fromAmount || '0') * 10 ** fromDecimals).toString();
+  if (amountWei === '0' || isNaN(Number(amountWei))) return [];
+
+  if (instrument.venueCategory === 'dex_spot') {
+    const legacyAsset = instrumentToLegacyAsset(instrument);
+    if (!legacyAsset) return [];
+    return getBestRWAExecution(
+      legacyAsset,
+      fromAmount,
+      fromDecimals,
+      chain.decimals,
+      walletAddress,
+      navUsd,
+      slippagePct,
+    );
+  }
+
+  if (instrument.venueCategory !== 'onchain_perps') {
+    return [];
+  }
+
+  const provider = getPerpExecutionProvider(instrument);
+  if (!provider) return [];
+
+  const quote = await provider.getQuote({
+    instrument,
+    chainId: chain.chainId,
+    fromAddress: chain.buyWithAddress,
+    toAddress: chain.contractAddress,
+    amountWei,
+    fromDecimals,
+    toDecimals: chain.decimals,
+    walletAddress,
+    slippagePct,
+  });
+
+  return [
+    mapExecutionQuoteToRouteOption(
+      quote,
+      instrument,
+      amountWei,
+      fromDecimals,
+      navUsd,
+      parseFloat(fromAmount),
+    ),
+  ];
+}
+
+export async function placeInstrumentOrder(params: PlaceOrderRequest): Promise<OrderPlacementResult> {
+  if (params.instrument.venueCategory !== 'onchain_perps') {
+    return {
+      status: 'unsupported',
+      venue: params.instrument.issuer,
+      error: 'placeInstrumentOrder currently supports onchain_perps only.',
+    };
+  }
+
+  const provider = getPerpExecutionProvider(params.instrument);
+  if (!provider?.placeOrder) {
+    return {
+      status: 'unsupported',
+      venue: params.instrument.issuer,
+      error: `No placeOrder implementation for ${params.instrument.id}`,
+    };
+  }
+
+  return provider.placeOrder(params);
 }
 
 function mapToRouteOption(

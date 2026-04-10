@@ -23,6 +23,7 @@ import { createRoot } from 'react-dom/client'
 // ✨ ThirdwebProvider 임포트 필수!
 import { ThirdwebProvider } from "thirdweb/react"; 
 import { Toaster } from 'react-hot-toast';
+import './i18n';
 import './index.css'
 import App from './App.tsx'
 

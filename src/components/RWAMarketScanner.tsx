@@ -9,13 +9,14 @@ import {
   ALL_INSTRUMENTS,
   ALL_INSTRUMENT_GROUPS,
 } from '../constants/rwaInstruments';
-import type { RWAInstrument, RWAInstrumentGroup } from '../types/rwaInstrument';
+import type { RWAInstrument, RWAInstrumentGroup, VenueCategory } from '../types/rwaInstrument';
 import type { AssetClass } from '../types/rwaInstrument';
-import { ASSET_CLASS_META, STRUCTURE_LABELS, EXECUTION_LABELS } from '../types/rwaInstrument';
+import { ASSET_CLASS_META, STRUCTURE_LABELS, EXECUTION_LABELS, VENUE_CATEGORY_META } from '../types/rwaInstrument';
 import { computeConfidence } from '../services/confidenceScoringService';
-import { Search, Filter, ArrowUpDown, Sparkles } from 'lucide-react';
+import { InstrumentIcon } from '../components/InstrumentIcon';
+import { Search, Filter, ArrowUpDown, Sparkles, Globe, Diamond, Zap, Building2, Link, LayoutGrid, Landmark, Gem, TrendingUp, FileText, Home } from 'lucide-react';
 import type { RWAPriceMap, NAVMap } from '../services/rwaService';
-import { formatApy, getChainName } from '../services/rwaService';
+import { formatApy, getChainName, getInstrumentImageUrl } from '../services/rwaService';
 
 // ─── Scanner filter presets ──────────────────────────────────
 type FilterPreset = 'all' | 'best_deals' | 'deepest_liq' | 'highest_yield' | 'executable' | 'tracked' | 'synthetic';
@@ -29,13 +30,21 @@ const PRESET_LABELS: { id: FilterPreset; label: string }[] = [
   { id: 'synthetic',     label: 'Synthetic' },
 ];
 
-const ASSET_CLASS_TABS: { id: AssetClass | 'all'; label: string; icon: string }[] = [
-  { id: 'all',         label: 'All Classes',   icon: '🌐' },
-  { id: 'treasury',    label: 'Treasuries',    icon: '🏛️' },
-  { id: 'commodity',   label: 'Commodities',   icon: '🏅' },
-  { id: 'equity',      label: 'Equities',      icon: '📈' },
-  { id: 'credit',      label: 'Credit',        icon: '📋' },
-  { id: 'real_estate', label: 'Real Estate',   icon: '🏠' },
+const VENUE_TABS: { id: VenueCategory | 'all'; label: string; icon: React.ReactNode }[] = [
+  { id: 'all',              label: 'All Markets',     icon: <Globe size={13} /> },
+  { id: 'dex_spot',         label: 'DEX Spot',       icon: <Diamond size={13} /> },
+  { id: 'onchain_perps',    label: 'Onchain Perps',  icon: <Zap size={13} /> },
+  { id: 'cex_perps',        label: 'CEX Perps',      icon: <Building2 size={13} /> },
+  { id: 'platform_access',  label: 'Platform',       icon: <Link size={13} /> },
+];
+
+const ASSET_CLASS_TABS: { id: AssetClass | 'all'; label: string; icon: React.ReactNode }[] = [
+  { id: 'all',         label: 'All Classes',   icon: <LayoutGrid size={13} /> },
+  { id: 'treasury',    label: 'Treasuries',    icon: <Landmark size={13} /> },
+  { id: 'commodity',   label: 'Commodities',   icon: <Gem size={13} /> },
+  { id: 'equity',      label: 'Equities',      icon: <TrendingUp size={13} /> },
+  { id: 'credit',      label: 'Credit',        icon: <FileText size={13} /> },
+  { id: 'real_estate', label: 'Real Estate',   icon: <Home size={13} /> },
 ];
 
 interface ScannerProps {
@@ -47,6 +56,7 @@ interface ScannerProps {
 
 export function RWAMarketScanner({ prices, navMap, onSelectInstrument, selectedId }: ScannerProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeVenue, setActiveVenue] = useState<VenueCategory | 'all'>('all');
   const [activeClass, setActiveClass] = useState<AssetClass | 'all'>('all');
   const [activePreset, setActivePreset] = useState<FilterPreset>('all');
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'spread' | 'apy' | 'confidence'>('name');
@@ -59,6 +69,11 @@ export function RWAMarketScanner({ prices, navMap, onSelectInstrument, selectedI
 
   const filteredInstruments = useMemo(() => {
     let list = ALL_INSTRUMENTS;
+
+    // Venue category filter
+    if (activeVenue !== 'all') {
+      list = list.filter(i => i.venueCategory === activeVenue);
+    }
 
     // Asset class filter
     if (activeClass !== 'all') {
@@ -103,7 +118,7 @@ export function RWAMarketScanner({ prices, navMap, onSelectInstrument, selectedI
     });
 
     return list;
-  }, [activeClass, activePreset, searchQuery, sortBy, sortDir, prices, navMap]);
+  }, [activeVenue, activeClass, activePreset, searchQuery, sortBy, sortDir, prices, navMap]);
 
   const SortHeader = ({ col, label }: { col: typeof sortBy; label: string }) => (
     <th className="pb-3 cursor-pointer hover:text-slate-300 select-none" onClick={() => handleSort(col)}>
@@ -131,6 +146,25 @@ export function RWAMarketScanner({ prices, navMap, onSelectInstrument, selectedI
               className="pl-9 pr-4 py-1.5 text-xs bg-slate-900 border border-slate-800 rounded-lg outline-none text-white w-56 focus:border-blue-500/50 placeholder-slate-600"
             />
           </div>
+        </div>
+
+        {/* Venue Category Tabs */}
+        <div className="flex gap-1 overflow-x-auto">
+          {VENUE_TABS.map(tab => {
+            const count = tab.id === 'all' ? ALL_INSTRUMENTS.length : ALL_INSTRUMENTS.filter(i => i.venueCategory === tab.id).length;
+            return (
+              <button key={tab.id} onClick={() => { setActiveVenue(tab.id); setActiveClass('all'); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
+                  activeVenue === tab.id
+                    ? 'bg-slate-700 text-white border border-slate-600'
+                    : 'bg-slate-900 text-slate-500 border border-slate-800 hover:border-slate-700'
+                }`}>
+                <span>{tab.icon}</span>
+                {tab.label}
+                <span className="text-[9px] opacity-60">{count}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Asset Class Tabs */}
@@ -189,6 +223,7 @@ export function RWAMarketScanner({ prices, navMap, onSelectInstrument, selectedI
                 const conf = computeConfidence(inst);
                 const isSelected = selectedId === inst.id;
                 const acMeta = ASSET_CLASS_META[inst.assetClass];
+                const venueMeta = VENUE_CATEGORY_META[inst.venueCategory];
                 const structMeta = STRUCTURE_LABELS[inst.structureType];
                 const execMeta = EXECUTION_LABELS[inst.executionAvailability];
 
@@ -213,10 +248,15 @@ export function RWAMarketScanner({ prices, navMap, onSelectInstrument, selectedI
                     {/* Instrument */}
                     <td className="py-3 pl-2 pr-3">
                       <div className="flex items-center gap-2.5">
-                        <div className={`w-7 h-7 rounded-lg ${acMeta.color.bg} flex items-center justify-center text-sm shrink-0`}>{acMeta.icon}</div>
+                        <div className="w-7 h-7 shrink-0">
+                          <InstrumentIcon instrument={inst} className="w-full h-full" />
+                        </div>
                         <div className="min-w-0">
                           <p className={`text-xs font-black truncate ${isSelected ? 'text-blue-400' : 'text-white'}`}>{inst.symbol}</p>
-                          <p className="text-[9px] text-slate-500 truncate">{inst.issuer}</p>
+                          <div className="flex items-center gap-1">
+                            <p className="text-[9px] text-slate-500 truncate">{inst.issuer}</p>
+                            <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${venueMeta.color.bg} ${venueMeta.color.text}`}>{venueMeta.label}</span>
+                          </div>
                         </div>
                       </div>
                     </td>

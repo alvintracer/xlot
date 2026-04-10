@@ -53,11 +53,11 @@ export function Dashboard() {
 
         <TabButton id="assets" active={activeTab} onClick={setActiveTab}
           icon={<Wallet size={22} strokeWidth={activeTab === "assets" ? 2.5 : 2} />}
-          label="자산" activeColor="text-blue-400"
+          label="Assets" activeColor="text-blue-400"
         />
         <TabButton id="swap" active={activeTab} onClick={setActiveTab}
           icon={<Repeat size={22} strokeWidth={activeTab === "swap" ? 2.5 : 2} />}
-          label="스왑" activeColor="text-cyan-400"
+          label="Swap" activeColor="text-cyan-400"
         />
         <TabButton id="trade" active={activeTab} onClick={setActiveTab}
           icon={
@@ -70,11 +70,11 @@ export function Dashboard() {
               )}
             </div>
           }
-          label="트레이드" activeColor="text-emerald-400"
+          label="Trade" activeColor="text-emerald-400"
         />
         <TabButton id="activity" active={activeTab} onClick={setActiveTab}
           icon={<Activity size={22} strokeWidth={activeTab === "activity" ? 2.5 : 2} />}
-          label="활동" activeColor="text-indigo-400"
+          label="Activity" activeColor="text-indigo-400"
         />
 
       </div>

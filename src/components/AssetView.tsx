@@ -764,9 +764,10 @@ export function AssetsView({ onSwapClick }: AssetsViewProps) {
             return (
               <div 
                 key={wallet.id} 
-                // ✨ [수정 1] 카드 전체를 클릭하면 상세 페이지로 이동
-                onClick={() => setSelectedWallet(wallet)}
-                // ✨ [수정 2] 마우스를 올렸을 때 클릭 가능하다는 표시 (cursor-pointer)
+                onClick={() => {
+                  setActiveWalletId(wallet.id);
+                  setSelectedWallet(wallet);
+                }}
                 className={`cursor-pointer relative p-5 rounded-2xl border shadow-lg group transition-all duration-300
                   ${wallet.wallet_type === 'XLOT' ? 'bg-slate-900' : 'bg-slate-900'}
                   ${wallet.id === activeWalletId ? 'border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400/30' : 'border-slate-800 hover:border-slate-700 hover:shadow-xl'}

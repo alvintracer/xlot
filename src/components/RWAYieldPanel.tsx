@@ -13,6 +13,9 @@ import {
   RWA_CATEGORY_COLORS,
 } from '../constants/rwaAssets';
 import type { RWAAsset, RWACategory } from '../constants/rwaAssets';
+import type { VenueCategory } from '../types/rwaInstrument';
+import { VENUE_CATEGORY_META } from '../types/rwaInstrument';
+import { ALL_INSTRUMENTS, instrumentToLegacyAsset } from '../constants/rwaInstruments';
 import {
   fetchRWAPrices, formatApy, getChainName,
   fetchNAVData, formatSpread, getSpreadColor,
@@ -33,6 +36,7 @@ export function RWAYieldPanel({ onSelectAsset }: RWAYieldPanelProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filter, setFilter]       = useState<FilterTab>('all');
+  const [venueFilter, setVenueFilter] = useState<VenueCategory | 'all'>('all');
 
   const loadPrices = async (showRefresh = false) => {
     if (showRefresh) setIsRefreshing(true);
@@ -51,7 +55,15 @@ export function RWAYieldPanel({ onSelectAsset }: RWAYieldPanelProps) {
 
   useEffect(() => { loadPrices(); }, []);
 
-  const filteredAssets = ALL_RWA_ASSETS.filter(a =>
+  // Build venue-aware asset list
+  const venueAwareAssets = venueFilter === 'all'
+    ? ALL_RWA_ASSETS
+    : ALL_INSTRUMENTS
+        .filter(i => i.venueCategory === venueFilter)
+        .map(i => instrumentToLegacyAsset(i))
+        .filter((a): a is NonNullable<typeof a> => a !== null);
+
+  const filteredAssets = venueAwareAssets.filter(a =>
     filter === 'all' ? true : a.category === filter
   );
 
@@ -124,6 +136,30 @@ export function RWAYieldPanel({ onSelectAsset }: RWAYieldPanelProps) {
             <span className="text-sm font-black text-emerald-400">5.1%</span>
           </div>
         )}
+      </div>
+
+      {/* Venue 필터 탭 */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        {([
+          { id: 'all' as const, label: '전체', icon: '🌐' },
+          { id: 'dex_spot' as const, label: 'DEX 현물', icon: '💎' },
+          { id: 'onchain_perps' as const, label: '온체인 선물', icon: '⚡' },
+          { id: 'cex_perps' as const, label: 'CEX 선물', icon: '🏢' },
+          { id: 'platform_access' as const, label: '플랫폼', icon: '🔗' },
+        ]).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => { setVenueFilter(tab.id); setFilter('all'); }}
+            className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1 ${
+              venueFilter === tab.id
+                ? 'bg-slate-700 border-slate-600 text-white'
+                : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            <span className="text-[10px]">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* 카테고리 필터 탭 */}

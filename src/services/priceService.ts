@@ -62,10 +62,14 @@ export async function fetchCryptoPrices(): Promise<PriceData> {
             }
         }
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5초 타임아웃
+
         const response = await fetch(
             "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,matic-network,tether,usd-coin,bitcoin,solana,tron,injective-protocol,dai,paypal-usd,xsgd,jpy-coin,euro-coin&vs_currencies=krw,usd&include_24hr_change=true",
-            { method: 'GET', headers: cgHeaders }
+            { method: 'GET', headers: cgHeaders, signal: controller.signal }
         );
+        clearTimeout(timeoutId);
 
         if (!response.ok) return priceCache || DEFAULT_PRICES;
 
